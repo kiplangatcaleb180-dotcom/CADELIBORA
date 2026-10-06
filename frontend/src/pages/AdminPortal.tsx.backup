@@ -1,0 +1,61 @@
+import React from 'react';
+import { Routes, Route, useLocation } from 'react-router-dom';
+import { AdminLayout } from './admin/AdminLayout';
+import { AdminDashboardView } from './admin/AdminDashboardView';
+import { AdminUsersView } from './admin/AdminUsersView';
+import { AdminProjectsProductsView } from './admin/AdminProjectsProductsView';
+import { AdminResearchView } from './admin/AdminResearchView';
+import { AdminAcademyView } from './admin/AdminAcademyView';
+import { AdminCMSView } from './admin/AdminCMSView';
+import { AdminCommunityServicesView } from './admin/AdminCommunityServicesView';
+import { AdminAnalyticsView } from './admin/AdminAnalyticsView';
+import { AdminSecurityView } from './admin/AdminSecurityView';
+import { AdminOrganizationView } from './admin/AdminOrganizationView';
+import { AdminTechnologyView } from './admin/AdminTechnologyView';
+import { AdminInnovationView } from './admin/AdminInnovationView';
+
+export const AdminPortal: React.FC = () => {
+  const location = useLocation();
+
+  const renderView = () => {
+    const path = location.pathname;
+    if (path.includes('/users') || path.includes('/roles') || path.includes('/permissions')) {
+      return <AdminUsersView />;
+    }
+    if (path.includes('/projects') || path.includes('/products')) {
+      return <AdminProjectsProductsView />;
+    }
+    if (path.includes('/research') || path.includes('/publications') || path.includes('/experiments')) {
+      return <AdminResearchView />;
+    }
+    if (path.includes('/academy') || path.includes('/courses') || path.includes('/lessons') || path.includes('/certificates')) {
+      return <AdminAcademyView />;
+    }
+    if (path.includes('/library') || path.includes('/articles') || path.includes('/news') || path.includes('/media')) {
+      return <AdminCMSView />;
+    }
+    if (path.includes('/community') || path.includes('/services') || path.includes('/case-studies')) {
+      return <AdminCommunityServicesView />;
+    }
+    if (path.includes('/analytics') || path.includes('/notifications') || path.includes('/settings')) {
+      return <AdminAnalyticsView />;
+    }
+    if (path.includes('/security') || path.includes('/audit-logs') || path.includes('/system')) {
+      return <AdminSecurityView />;
+    }
+    if (path.includes('/organization')) {
+      return <AdminOrganizationView />;
+    }
+    if (path.includes('/innovation')) {
+      return <AdminInnovationView />;
+    }
+    if (path.includes('/technology')) {
+      return <AdminTechnologyView />;
+    }
+    return <AdminDashboardView />;
+  };
+
+  return <AdminLayout>{renderView()}</AdminLayout>;
+};
+
+export default AdminPortal;

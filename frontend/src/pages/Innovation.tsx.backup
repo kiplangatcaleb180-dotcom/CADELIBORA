@@ -1,0 +1,156 @@
+import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { fetchApi } from '../lib/api';
+import { Zap, Lightbulb, Rocket, ThumbsUp, Plus, ArrowRight } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+import { Button, Badge, Card, CardHeader, CardTitle, CardDescription, CardContent, EmptyState } from '../components/ui';
+
+export const Innovation: React.FC = () => {
+  const [concepts, setConcepts] = useState<any[]>([]);
+  const [title, setTitle] = useState('');
+  const [category, setCategory] = useState('AI Agent');
+  const [summary, setSummary] = useState('');
+  const [fullDetails, setFullDetails] = useState('');
+  const [showModal, setShowModal] = useState(false);
+  const { user } = useAuth();
+
+  const loadConcepts = async () => {
+    try {
+      const res = await fetchApi<{ concepts: any[] }>('/innovation');
+      setConcepts(res.concepts || []);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  useEffect(() => {
+    loadConcepts();
+  }, []);
+
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!title || !summary || !fullDetails) return;
+
+    try {
+      await fetchApi('/innovation', {
+        method: 'POST',
+        body: JSON.stringify({ title, category, summary, fullDetails }),
+      });
+      setTitle('');
+      setSummary('');
+      setFullDetails('');
+      setShowModal(false);
+      loadConcepts();
+    } catch (err) {
+      alert('Failed to submit innovation concept');
+    }
+  };
+
+  const handleVote = async (conceptId: string) => {
+    try {
+      await fetchApi(`/innovation/${conceptId}/vote`, { method: 'POST' });
+      loadConcepts();
+    } catch (err) {
+      alert('Failed to register vote');
+    }
+  };
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 space-y-12">
+      <div className="flex flex-col md:flex-row items-center justify-between gap-6 border-b border-slate-800 pb-8">
+        <div>
+          <h1 className="text-xs font-mono font-bold uppercase tracking-widest text-cyber-neon">Innovation Center</h1>
+          <h2 className="text-3xl sm:text-4xl font-black text-white">Future Concepts & Prototypes</h2>
+          <p className="text-slate-400 text-sm mt-1">Submit, vote, and incubate next-generation technology ideas.</p>
+        </div>
+        {user && (
+          <Button variant="primary" onClick={() => setShowModal(true)}>
+            <Plus className="w-4 h-4 mr-2" /> Submit Idea Concept
+          </Button>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        {concepts.map((c) => (
+          <div key={c.id} className="p-8 rounded-3xl glass-panel border border-slate-800 space-y-4 flex flex-col justify-between">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between text-xs font-mono">
+                <Badge variant="cyan">{c.category}</Badge>
+                <span className="text-slate-400">{c.conceptStage}</span>
+              </div>
+              <h3 className="text-xl font-bold text-white hover:text-brand-400 transition-colors">
+                <Link to={`/innovation/${c.id}`}>{c.title}</Link>
+              </h3>
+              <p className="text-sm text-slate-300 leading-relaxed">{c.summary}</p>
+            </div>
+
+            <div className="pt-4 border-t border-slate-800 space-y-3">
+              <div className="flex items-center justify-between text-xs font-mono text-slate-400">
+                <span>Author: {c.author?.fullName}</span>
+                <button
+                  onClick={() => handleVote(c.id)}
+                  className="flex items-center gap-1.5 px-3 py-1 bg-slate-900 hover:bg-brand-500/20 rounded-lg border border-slate-800 text-brand-400 font-bold transition-all"
+                >
+                  <ThumbsUp className="w-3.5 h-3.5" />
+                  <span>{c.votesCount}</span>
+                </button>
+              </div>
+
+              <Button variant="outline" size="sm" className="w-full">
+                <Link to={`/innovation/${c.id}`} className="inline-flex items-center justify-center w-full">
+                  Read Concept <ArrowRight className="w-4 h-4 ml-1.5" />
+                </Link>
+              </Button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4">
+          <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4">
+            <h3 className="text-lg font-bold text-white">Submit Innovation Concept</h3>
+            <form onSubmit={handleCreate} className="space-y-3">
+              <input
+                type="text"
+                placeholder="Concept Title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white"
+                required
+              />
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white"
+              >
+                <option value="AI Agent">AI Agent</option>
+                <option value="Quantum">Quantum</option>
+                <option value="Edge AI">Edge AI</option>
+                <option value="Autonomous Systems">Autonomous Systems</option>
+              </select>
+              <textarea
+                placeholder="Brief Summary"
+                value={summary}
+                onChange={(e) => setSummary(e.target.value)}
+                className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white h-20"
+                required
+              />
+              <textarea
+                placeholder="Full Architecture & Specifications"
+                value={fullDetails}
+                onChange={(e) => setFullDetails(e.target.value)}
+                className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white h-24"
+                required
+              />
+              <div className="flex gap-2 pt-2">
+                <Button type="submit" variant="primary" className="flex-1">Submit</Button>
+                <Button type="button" variant="secondary" onClick={() => setShowModal(false)}>Cancel</Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};

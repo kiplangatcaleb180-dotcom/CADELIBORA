@@ -1,0 +1,9 @@
+.dark {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.light {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+}

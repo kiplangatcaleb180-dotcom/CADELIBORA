@@ -1,0 +1,324 @@
+import prisma from '../config/db.js';
+import { searchCADELIBORAKnowledgeSemantic } from './aiKnowledgeSemantic.js';
+
+type KnowledgeItem = {
+  source: string;
+  id: string;
+  title: string;
+  content: string;
+};
+
+const STOP_WORDS = new Set([
+  'the',
+  'and',
+  'for',
+  'are',
+  'but',
+  'not',
+  'you',
+  'your',
+  'what',
+  'when',
+  'where',
+  'which',
+  'who',
+  'how',
+  'does',
+  'did',
+  'can',
+  'could',
+  'would',
+  'should',
+  'have',
+  'has',
+  'had',
+  'this',
+  'that',
+  'with',
+  'from',
+  'about',
+  'into',
+  'their',
+  'there',
+  'our',
+  'its',
+  'currently',
+]);
+
+function buildTerms(query: string): string[] {
+  return [...new Set(
+    query
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}\s-]/gu, ' ')
+      .split(/\s+/)
+      .map((term) => term.trim())
+      .filter(
+        (term) =>
+          term.length >= 3 &&
+          !STOP_WORDS.has(term)
+      )
+  )].slice(0, 8);
+}
+
+export async function retrieveCADELIBORAKnowledge(
+  query: string,
+  limit = 12
+): Promise<KnowledgeItem[]> {
+  const terms = buildTerms(query);
+
+  if (!terms.length) {
+    const semanticResults = await searchCADELIBORAKnowledgeSemantic(query, limit);
+
+    return semanticResults
+      .filter((item) => item.similarity >= 0.32)
+      .map((item) => ({
+        source: item.source,
+        id: item.sourceId,
+        title: item.title,
+        content: item.content,
+      }))
+      .slice(0, limit);
+  }
+
+  const technology = await prisma.technology.findMany({
+    where: {
+      isPublished: true,
+      OR: terms.flatMap((term) => [
+        { name: { contains: term, mode: 'insensitive' } },
+        { category: { contains: term, mode: 'insensitive' } },
+        { description: { contains: term, mode: 'insensitive' } },
+      ]),
+    },
+    take: 6,
+    orderBy: [
+      { featured: 'desc' },
+      { sortOrder: 'asc' },
+    ],
+  });
+
+  const domains = await prisma.technologyDomain.findMany({
+    where: {
+      isPublished: true,
+      OR: terms.flatMap((term) => [
+        { name: { contains: term, mode: 'insensitive' } },
+        { description: { contains: term, mode: 'insensitive' } },
+      ]),
+    },
+    take: 4,
+    orderBy: { sortOrder: 'asc' },
+  });
+
+  const stack = await prisma.technologyStack.findMany({
+    where: {
+      isPublished: true,
+      OR: terms.flatMap((term) => [
+        { name: { contains: term, mode: 'insensitive' } },
+        { type: { contains: term, mode: 'insensitive' } },
+        { description: { contains: term, mode: 'insensitive' } },
+      ]),
+    },
+    take: 4,
+    orderBy: { sortOrder: 'asc' },
+  });
+
+  const sections = await prisma.technologySection.findMany({
+    where: {
+      isPublished: true,
+      OR: terms.flatMap((term) => [
+        { sectionKey: { contains: term, mode: 'insensitive' } },
+        { title: { contains: term, mode: 'insensitive' } },
+        { content: { contains: term, mode: 'insensitive' } },
+      ]),
+    },
+    take: 4,
+    orderBy: { sortOrder: 'asc' },
+  });
+
+  const courses = await prisma.course.findMany({
+    where: {
+      isPublished: true,
+      OR: terms.flatMap((term) => [
+        { title: { contains: term, mode: 'insensitive' } },
+        { category: { contains: term, mode: 'insensitive' } },
+        { description: { contains: term, mode: 'insensitive' } },
+      ]),
+    },
+    include: {
+      lessons: {
+        orderBy: { order: 'asc' },
+        take: 5,
+      },
+    },
+    take: 4,
+    orderBy: { createdAt: 'desc' },
+  });
+
+  const researchProjects = await prisma.researchProject.findMany({
+    where: {
+      OR: terms.flatMap((term) => [
+        { title: { contains: term, mode: 'insensitive' } },
+        { area: { contains: term, mode: 'insensitive' } },
+        { description: { contains: term, mode: 'insensitive' } },
+      ]),
+    },
+    include: {
+      publications: {
+        orderBy: { year: 'desc' },
+        take: 3,
+      },
+    },
+    take: 5,
+    orderBy: { createdAt: 'desc' },
+  });
+
+  const innovations = await prisma.innovationConcept.findMany({
+    where: {
+      OR: terms.flatMap((term) => [
+        { title: { contains: term, mode: 'insensitive' } },
+        { category: { contains: term, mode: 'insensitive' } },
+        { conceptStage: { contains: term, mode: 'insensitive' } },
+        { summary: { contains: term, mode: 'insensitive' } },
+        { fullDetails: { contains: term, mode: 'insensitive' } },
+      ]),
+    },
+    take: 5,
+    orderBy: { createdAt: 'desc' },
+  });
+
+  const results: KnowledgeItem[] = [];
+
+  for (const item of technology) {
+    results.push({
+      source: 'Technology',
+      id: item.id,
+      title: item.name,
+      content: [
+        `Category: ${item.category}`,
+        `Description: ${item.description}`,
+        item.version ? `Version: ${item.version}` : '',
+        item.websiteUrl ? `Website: ${item.websiteUrl}` : '',
+        item.docsUrl ? `Documentation: ${item.docsUrl}` : '',
+      ].filter(Boolean).join('\n'),
+    });
+  }
+
+  for (const item of domains) {
+    results.push({
+      source: 'Technology Domain',
+      id: item.id,
+      title: item.name,
+      content: item.description,
+    });
+  }
+
+  for (const item of stack) {
+    results.push({
+      source: 'Technology Stack',
+      id: item.id,
+      title: item.name,
+      content: [
+        `Type: ${item.type}`,
+        item.description ? `Description: ${item.description}` : '',
+      ].filter(Boolean).join('\n'),
+    });
+  }
+
+  for (const item of sections) {
+    results.push({
+      source: 'Technology Section',
+      id: item.id,
+      title: item.title,
+      content: item.content,
+    });
+  }
+
+  for (const course of courses) {
+    const lessons = course.lessons
+      .map((lesson) => `Lesson ${lesson.order}: ${lesson.title}\n${lesson.content}`)
+      .join('\n\n');
+
+    results.push({
+      source: 'Academy Course',
+      id: course.id,
+      title: course.title,
+      content: [
+        `Category: ${course.category}`,
+        `Level: ${course.level}`,
+        `Duration: ${course.duration}`,
+        `Description: ${course.description}`,
+        lessons,
+      ].filter(Boolean).join('\n'),
+    });
+  }
+
+  for (const project of researchProjects) {
+    const publications = project.publications
+      .map(
+        (publication) =>
+          `Publication: ${publication.title} (${publication.year})\n` +
+          `Authors: ${publication.authors}\n` +
+          `Journal: ${publication.journal}\n` +
+          `Abstract: ${publication.abstract}`
+      )
+      .join('\n\n');
+
+    results.push({
+      source: 'Research Project',
+      id: project.id,
+      title: project.title,
+      content: [
+        `Area: ${project.area}`,
+        `Status: ${project.status}`,
+        `Years: ${project.startYear}${project.endYear ? `-${project.endYear}` : ''}`,
+        `Description: ${project.description}`,
+        publications,
+      ].filter(Boolean).join('\n'),
+    });
+  }
+
+  for (const item of innovations) {
+    results.push({
+      source: 'Innovation',
+      id: item.id,
+      title: item.title,
+      content: [
+        `Category: ${item.category}`,
+        `Stage: ${item.conceptStage}`,
+        `Summary: ${item.summary}`,
+        `Details: ${item.fullDetails}`,
+      ].join('\n'),
+    });
+  }
+
+  const semanticResults = await searchCADELIBORAKnowledgeSemantic(query, limit);
+
+  const merged: KnowledgeItem[] = [];
+  const seen = new Set<string>();
+
+  // Include sufficiently relevant semantic matches first.
+  for (const item of semanticResults) {
+    if (item.similarity < 0.32) continue;
+
+    const key = `${item.source}:${item.sourceId}`;
+    if (seen.has(key)) continue;
+
+    seen.add(key);
+    merged.push({
+      source: item.source,
+      id: item.sourceId,
+      title: item.title,
+      content: item.content,
+    });
+  }
+
+  // Add keyword matches that were not already included.
+  for (const item of results) {
+    const key = `${item.source}:${item.id}`;
+    if (seen.has(key)) continue;
+
+    seen.add(key);
+    merged.push(item);
+  }
+
+  return merged.slice(0, limit);
+}

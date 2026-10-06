@@ -1,0 +1,408 @@
+import React, { useEffect, useState } from 'react';
+import { Building2, Save, Globe, Mail, Phone, MapPin } from 'lucide-react';
+import { fetchApi } from '../../lib/api';
+
+interface Organization {
+  id: string;
+  name: string;
+  tagline?: string | null;
+  description: string;
+  vision?: string | null;
+  mission?: string | null;
+  valuesJson?: string[] | null;
+  logoUrl?: string | null;
+  websiteUrl?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  isPublished: boolean;
+}
+
+export const AdminOrganizationView: React.FC = () => {
+  const [organization, setOrganization] = useState<Organization | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+
+  const [formData, setFormData] = useState({
+    name: '',
+    tagline: '',
+    description: '',
+    vision: '',
+    mission: '',
+    values: '',
+    logoUrl: '',
+    websiteUrl: '',
+    email: '',
+    phone: '',
+    address: '',
+    isPublished: true,
+  });
+
+  const loadOrganization = async () => {
+    try {
+      setLoading(true);
+      setError('');
+
+      const response = await fetchApi<{
+        success: boolean;
+        organization: Organization | null;
+      }>('/admin/organization');
+
+      if (!response.organization) {
+        setError('Organization has not been configured.');
+        return;
+      }
+
+      const org = response.organization;
+
+      setOrganization(org);
+
+      const values = Array.isArray(org.valuesJson)
+        ? org.valuesJson.join('\n')
+        : '';
+
+      setFormData({
+        name: org.name || '',
+        tagline: org.tagline || '',
+        description: org.description || '',
+        vision: org.vision || '',
+        mission: org.mission || '',
+        values,
+        logoUrl: org.logoUrl || '',
+        websiteUrl: org.websiteUrl || '',
+        email: org.email || '',
+        phone: org.phone || '',
+        address: org.address || '',
+        isPublished: org.isPublished,
+      });
+    } catch (err: any) {
+      setError(err.message || 'Failed to load organization.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadOrganization();
+  }, []);
+
+  const updateField = (
+    field: keyof typeof formData,
+    value: string | boolean
+  ) => {
+    setFormData((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  };
+
+  const handleSave = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    if (!organization) return;
+
+    try {
+      setSaving(true);
+      setMessage('');
+      setError('');
+
+      const valuesJson = formData.values
+        .split('\n')
+        .map((value) => value.trim())
+        .filter(Boolean);
+
+      await fetchApi(`/admin/organization/${organization.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          name: formData.name,
+          tagline: formData.tagline || null,
+          description: formData.description,
+          vision: formData.vision || null,
+          mission: formData.mission || null,
+          valuesJson,
+          logoUrl: formData.logoUrl || null,
+          websiteUrl: formData.websiteUrl || null,
+          email: formData.email || null,
+          phone: formData.phone || null,
+          address: formData.address || null,
+          isPublished: formData.isPublished,
+        }),
+      });
+
+      setMessage('Organization profile saved successfully.');
+
+      await loadOrganization();
+    } catch (err: any) {
+      setError(err.message || 'Failed to save organization.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="p-12 text-center font-mono text-brand-400 animate-pulse">
+        Loading Organization CMS...
+      </div>
+    );
+  }
+
+  if (error && !organization) {
+    return (
+      <div className="p-8">
+        <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-6 text-rose-400">
+          {error}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-8">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <div className="flex items-center gap-3">
+            <Building2 className="h-6 w-6 text-brand-400" />
+            <h2 className="text-2xl font-bold text-white">
+              Organization CMS
+            </h2>
+          </div>
+
+          <p className="mt-2 text-sm text-slate-400">
+            Manage the public identity and core information of CADELIBORA.
+          </p>
+        </div>
+
+        <div
+          className={`rounded-full px-4 py-2 text-xs font-bold ${
+            formData.isPublished
+              ? 'bg-emerald-500/10 text-emerald-400'
+              : 'bg-amber-500/10 text-amber-400'
+          }`}
+        >
+          {formData.isPublished ? 'PUBLISHED' : 'UNPUBLISHED'}
+        </div>
+      </div>
+
+      {message && (
+        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-400">
+          {message}
+        </div>
+      )}
+
+      {error && (
+        <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-400">
+          {error}
+        </div>
+      )}
+
+      <form onSubmit={handleSave} className="space-y-8">
+        <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6">
+          <h3 className="mb-5 text-lg font-bold text-white">
+            Organization Identity
+          </h3>
+
+          <div className="grid gap-5 md:grid-cols-2">
+            <div>
+              <label className="mb-2 block text-sm text-slate-300">
+                Organization Name
+              </label>
+              <input
+                value={formData.name}
+                onChange={(e) => updateField('name', e.target.value)}
+                required
+                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none focus:border-brand-500"
+              />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm text-slate-300">
+                Tagline
+              </label>
+              <input
+                value={formData.tagline}
+                onChange={(e) => updateField('tagline', e.target.value)}
+                placeholder="Your organization's short identity statement"
+                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none focus:border-brand-500"
+              />
+            </div>
+          </div>
+
+          <div className="mt-5">
+            <label className="mb-2 block text-sm text-slate-300">
+              Description
+            </label>
+            <textarea
+              value={formData.description}
+              onChange={(e) => updateField('description', e.target.value)}
+              required
+              rows={5}
+              className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none focus:border-brand-500"
+            />
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6">
+          <h3 className="mb-5 text-lg font-bold text-white">
+            Vision, Mission & Values
+          </h3>
+
+          <div className="space-y-5">
+            <div>
+              <label className="mb-2 block text-sm text-slate-300">
+                Vision
+              </label>
+              <textarea
+                value={formData.vision}
+                onChange={(e) => updateField('vision', e.target.value)}
+                rows={4}
+                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none focus:border-brand-500"
+              />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm text-slate-300">
+                Mission
+              </label>
+              <textarea
+                value={formData.mission}
+                onChange={(e) => updateField('mission', e.target.value)}
+                rows={4}
+                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none focus:border-brand-500"
+              />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm text-slate-300">
+                Core Values
+              </label>
+              <textarea
+                value={formData.values}
+                onChange={(e) => updateField('values', e.target.value)}
+                rows={6}
+                placeholder="One value per line"
+                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none focus:border-brand-500"
+              />
+              <p className="mt-2 text-xs text-slate-500">
+                Enter one core value per line.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6">
+          <h3 className="mb-5 text-lg font-bold text-white">
+            Contact & Online Presence
+          </h3>
+
+          <div className="grid gap-5 md:grid-cols-2">
+            <div>
+              <label className="mb-2 flex items-center gap-2 text-sm text-slate-300">
+                <Globe className="h-4 w-4" />
+                Website
+              </label>
+              <input
+                value={formData.websiteUrl}
+                onChange={(e) => updateField('websiteUrl', e.target.value)}
+                placeholder="https://..."
+                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none focus:border-brand-500"
+              />
+            </div>
+
+            <div>
+              <label className="mb-2 flex items-center gap-2 text-sm text-slate-300">
+                <Mail className="h-4 w-4" />
+                Email
+              </label>
+              <input
+                type="email"
+                value={formData.email}
+                onChange={(e) => updateField('email', e.target.value)}
+                placeholder="organization@example.com"
+                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none focus:border-brand-500"
+              />
+            </div>
+
+            <div>
+              <label className="mb-2 flex items-center gap-2 text-sm text-slate-300">
+                <Phone className="h-4 w-4" />
+                Phone
+              </label>
+              <input
+                value={formData.phone}
+                onChange={(e) => updateField('phone', e.target.value)}
+                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none focus:border-brand-500"
+              />
+            </div>
+
+            <div>
+              <label className="mb-2 flex items-center gap-2 text-sm text-slate-300">
+                <MapPin className="h-4 w-4" />
+                Address
+              </label>
+              <input
+                value={formData.address}
+                onChange={(e) => updateField('address', e.target.value)}
+                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none focus:border-brand-500"
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="mb-2 block text-sm text-slate-300">
+                Logo URL
+              </label>
+              <input
+                value={formData.logoUrl}
+                onChange={(e) => updateField('logoUrl', e.target.value)}
+                placeholder="https://..."
+                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none focus:border-brand-500"
+              />
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6">
+          <h3 className="mb-5 text-lg font-bold text-white">
+            Publication
+          </h3>
+
+          <label className="flex cursor-pointer items-center gap-3">
+            <input
+              type="checkbox"
+              checked={formData.isPublished}
+              onChange={(e) =>
+                updateField('isPublished', e.target.checked)
+              }
+              className="h-5 w-5 rounded"
+            />
+
+            <span>
+              <span className="block font-medium text-white">
+                Publish Organization
+              </span>
+              <span className="text-sm text-slate-400">
+                When enabled, the organization information can appear on
+                public pages.
+              </span>
+            </span>
+          </label>
+        </section>
+
+        <div className="flex justify-end">
+          <button
+            type="submit"
+            disabled={saving}
+            className="flex items-center gap-2 rounded-xl bg-brand-600 px-6 py-3 font-bold text-white transition hover:bg-brand-500 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Save className="h-5 w-5" />
+            {saving ? 'Saving...' : 'Save Organization'}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+};
+
+export default AdminOrganizationView;

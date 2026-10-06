@@ -1,0 +1,127 @@
+import React, { useEffect, useState } from 'react';
+import { fetchApi } from '../../lib/api';
+import { DataTable, Column } from '../../components/admin/DataTable';
+import { GraduationCap, Award, Plus, Trash2 } from 'lucide-react';
+
+export const AdminAcademyView: React.FC = () => {
+  const [courses, setCourses] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [formData, setFormData] = useState<any>({});
+
+  const loadCourses = async () => {
+    try {
+      const res = await fetchApi<{ courses: any[] }>('/admin/academy/courses');
+      setCourses(res.courses || []);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadCourses();
+  }, []);
+
+  const handleCreateCourse = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await fetchApi('/admin/academy/courses', {
+        method: 'POST',
+        body: JSON.stringify(formData),
+      });
+      setShowModal(false);
+      setFormData({});
+      loadCourses();
+    } catch (err: any) {
+      alert(err.message || 'Creation failed');
+    }
+  };
+
+  const handleDeleteCourse = async (id: string) => {
+    if (!confirm('Delete course?')) return;
+    try {
+      await fetchApi(`/admin/academy/courses/${id}`, { method: 'DELETE' });
+      loadCourses();
+    } catch (err: any) {
+      alert(err.message || 'Delete failed');
+    }
+  };
+
+  const cols: Column<any>[] = [
+    { key: 'title', header: 'Course Title', render: (c) => <span className="font-bold text-white">{c.title}</span> },
+    { key: 'category', header: 'Category', render: (c) => <span className="text-brand-400 font-bold">{c.category}</span> },
+    { key: 'level', header: 'Level', render: (c) => <span className="text-emerald-400 font-bold">{c.level}</span> },
+    { key: 'duration', header: 'Duration' },
+    {
+      key: 'actions',
+      header: 'Actions',
+      sortable: false,
+      render: (c) => (
+        <button onClick={() => handleDeleteCourse(c.id)} className="p-1.5 bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 rounded-lg">
+          <Trash2 className="w-4 h-4" />
+        </button>
+      ),
+    },
+  ];
+
+  if (loading) return <div className="p-12 text-center font-mono text-brand-400 animate-pulse">Loading Academy Data...</div>;
+
+  return (
+    <div className="space-y-8">
+      <div className="flex justify-between items-center">
+        <h2 className="text-xl font-bold font-mono text-white flex items-center gap-2">
+          <GraduationCap className="w-5 h-5 text-emerald-400" />
+          <span>Academy Courses, Lessons & Certificates</span>
+        </h2>
+        <button
+          onClick={() => setShowModal(true)}
+          className="px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white font-bold font-mono text-xs rounded-xl flex items-center gap-2"
+        >
+          <Plus className="w-4 h-4" />
+          <span>Create New Course</span>
+        </button>
+      </div>
+
+      <DataTable title="Academy Courses" data={courses} columns={cols} searchKey="title" />
+
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4">
+          <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4 font-mono text-xs">
+            <h3 className="text-sm font-bold text-white">Create Academy Course</h3>
+            <form onSubmit={handleCreateCourse} className="space-y-3">
+              <input
+                type="text"
+                placeholder="Course Title"
+                required
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-white"
+              />
+              <input
+                type="text"
+                placeholder="Category (e.g., Artificial Intelligence)"
+                required
+                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-white"
+              />
+              <textarea
+                placeholder="Course Description"
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-white h-20"
+              />
+              <div className="flex gap-2 pt-2">
+                <button type="submit" className="flex-1 p-2.5 bg-brand-600 font-bold rounded-xl text-white">
+                  Create Course
+                </button>
+                <button type="button" onClick={() => setShowModal(false)} className="px-4 p-2.5 bg-slate-800 font-bold rounded-xl text-slate-300">
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};

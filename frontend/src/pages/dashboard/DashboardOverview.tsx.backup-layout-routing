@@ -1,0 +1,278 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui';
+import { useAuth } from '../../contexts/AuthContext';
+import { fetchApi } from '../../lib/api';
+import { DashboardLayout } from '../../layouts/DashboardLayout';
+import { getDashboardRoleConfig } from '../../config/dashboardRoles';
+import {
+  Activity,
+  ArrowRight,
+  BarChart3,
+  BookOpen,
+  CheckCircle2,
+  FolderGit2,
+  GraduationCap,
+  Library,
+  MessageSquare,
+  ShieldCheck,
+  Users,
+  FlaskConical,
+  Award,
+  BriefcaseBusiness,
+  Code2,
+  FileText,
+  Package,
+} from 'lucide-react';
+
+
+interface PersonalAnalytics {
+  enrolledCourses: number;
+  completedCourses: number;
+  certificatesEarned: number;
+  savedResources: number;
+  communityPosts: number;
+}
+
+interface ResearchProject {
+  id: string;
+  title: string;
+  status?: string;
+  description?: string;
+}
+
+interface RoleContent {
+  title: string;
+  description: string;
+  primaryLabel: string;
+  primaryPath: string;
+}
+
+const roleContent: Record<string, RoleContent> = {
+  SUPER_ADMIN: {
+    title: "Command Overview",
+    description: "Your personal operations, responsibilities, and activity across CADELIBORA.",
+    primaryLabel: "My Operations",
+    primaryPath: "/dashboard/projects",
+  },
+  ADMIN: {
+    title: "Operations Overview",
+    description: "Your assigned operations, managed content, and administrative activity.",
+    primaryLabel: "Assigned Operations",
+    primaryPath: "/dashboard/projects",
+  },
+  RESEARCHER: {
+    title: "Research Overview",
+    description: "Your research projects, publications, resources, and research activity.",
+    primaryLabel: "My Research",
+    primaryPath: "/dashboard/research",
+  },
+  DEVELOPER: {
+    title: "Developer Overview",
+    description: "Your development projects, resources, documentation, and technical activity.",
+    primaryLabel: "My Projects",
+    primaryPath: "/dashboard/projects",
+  },
+  INSTRUCTOR: {
+    title: "Teaching Overview",
+    description: "Your courses, teaching activities, students, and course performance.",
+    primaryLabel: "My Courses",
+    primaryPath: "/dashboard/courses",
+  },
+  STUDENT: {
+    title: "Learning Overview",
+    description: "Your courses, learning progress, certificates, and educational resources.",
+    primaryLabel: "My Courses",
+    primaryPath: "/dashboard/courses",
+  },
+  MODERATOR: {
+    title: "Moderation Overview",
+    description: "Your community responsibilities, reports, discussions, and moderation activity.",
+    primaryLabel: "Community",
+    primaryPath: "/community",
+  },
+  PARTNER: {
+    title: "Partner Overview",
+    description: "Your partnerships, services, products, orders, and collaborative work.",
+    primaryLabel: "My Partnerships",
+    primaryPath: "/dashboard/projects",
+  },
+  USER: {
+    title: "Personal Overview",
+    description: "Your CADELIBORA activity, projects, resources, and community access.",
+    primaryLabel: "My Projects",
+    primaryPath: "/dashboard/projects",
+  },
+};
+
+export const DashboardOverview: React.FC = () => {
+  const { user } = useAuth();
+
+  const role = user?.role || "USER";
+  const config = getDashboardRoleConfig(role);
+  const content = roleContent[role] || roleContent.USER;
+
+  const [analytics, setAnalytics] = useState<PersonalAnalytics>({
+    enrolledCourses: 0,
+    completedCourses: 0,
+    certificatesEarned: 0,
+    savedResources: 0,
+    communityPosts: 0,
+  });
+
+  const [researchProjects, setResearchProjects] = useState<ResearchProject[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadOverview = async () => {
+      try {
+        const data = await fetchApi<PersonalAnalytics>("/auth/analytics/me");
+
+        if (mounted && data) {
+          setAnalytics({
+            enrolledCourses: data.enrolledCourses || 0,
+            completedCourses: data.completedCourses || 0,
+            certificatesEarned: data.certificatesEarned || 0,
+            savedResources: data.savedResources || 0,
+            communityPosts: data.communityPosts || 0,
+          });
+        }
+
+        if (role === "RESEARCHER") {
+          const projects = await fetchApi<ResearchProject[]>("/research/my-projects");
+
+          if (mounted && Array.isArray(projects)) {
+            setResearchProjects(projects);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to load dashboard overview:", error);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    loadOverview();
+
+    return () => {
+      mounted = false;
+    };
+  }, [role]);
+
+  const stats = useMemo(() => {
+    switch (role) {
+      case "RESEARCHER":
+        return [
+          { label: "My Research", value: researchProjects.length, icon: FlaskConical },
+          { label: "Publications", value: 0, icon: FileText },
+          { label: "Saved Resources", value: analytics.savedResources, icon: Library },
+          { label: "Community Activity", value: analytics.communityPosts, icon: MessageSquare },
+        ];
+
+      case "INSTRUCTOR":
+        return [
+          { label: "My Courses", value: analytics.enrolledCourses, icon: GraduationCap },
+          { label: "Completed", value: analytics.completedCourses, icon: CheckCircle2 },
+          { label: "Resources", value: analytics.savedResources, icon: Library },
+          { label: "Activity", value: analytics.communityPosts, icon: Activity },
+        ];
+
+      case "STUDENT":
+        return [
+          { label: "Enrolled Courses", value: analytics.enrolledCourses, icon: GraduationCap },
+          { label: "Completed Courses", value: analytics.completedCourses, icon: CheckCircle2 },
+          { label: "Certificates", value: analytics.certificatesEarned, icon: Award },
+          { label: "Saved Resources", value: analytics.savedResources, icon: Library },
+        ];
+
+      case "DEVELOPER":
+        return [
+          { label: "Projects", value: 0, icon: FolderGit2 },
+          { label: "Resources", value: analytics.savedResources, icon: Code2 },
+          { label: "Activity", value: analytics.communityPosts, icon: Activity },
+          { label: "Certificates", value: analytics.certificatesEarned, icon: Award },
+        ];
+
+      case "MODERATOR":
+        return [
+          { label: "Community Activity", value: analytics.communityPosts, icon: MessageSquare },
+          { label: "Reports", value: 0, icon: ShieldCheck },
+          { label: "Members", value: 0, icon: Users },
+          { label: "Activity", value: analytics.communityPosts, icon: Activity },
+        ];
+
+      case "PARTNER":
+        return [
+          { label: "Partnerships", value: 0, icon: BriefcaseBusiness },
+          { label: "Orders", value: 0, icon: Package },
+          { label: "Projects", value: 0, icon: FolderGit2 },
+          { label: "Messages", value: 0, icon: MessageSquare },
+        ];
+
+      case "SUPER_ADMIN":
+      case "ADMIN":
+        return [
+          { label: "Operations", value: 0, icon: Activity },
+          { label: "Projects", value: 0, icon: FolderGit2 },
+          { label: "Resources", value: analytics.savedResources, icon: Library },
+          { label: "Activity", value: analytics.communityPosts, icon: BarChart3 },
+        ];
+
+      default:
+        return [
+          { label: "Projects", value: 0, icon: FolderGit2 },
+          { label: "Courses", value: analytics.enrolledCourses, icon: GraduationCap },
+          { label: "Resources", value: analytics.savedResources, icon: Library },
+          { label: "Community", value: analytics.communityPosts, icon: MessageSquare },
+        ];
+    }
+  }, [role, analytics, researchProjects]);
+
+  return (
+    <DashboardLayout>
+      <div className="space-y-8">
+        <section>
+          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p className="text-sm font-medium text-blue-400">{config.label}</p>
+              <h1 className="mt-2 text-3xl font-bold text-white">{content.title}</h1>
+              <p className="mt-2 max-w-3xl text-slate-400">{content.description}</p>
+            </div>
+
+            <Link
+              to={content.primaryPath}
+              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-500"
+            >
+              {content.primaryLabel}
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+        </section>
+
+        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {stats.map((stat) => {
+            const Icon = stat.icon;
+
+            return (
+              <Card key={stat.label} hoverEffect>
+                <CardContent className="flex items-center justify-between p-6">
+                  <div>
+                    <p className="text-sm text-slate-400">{stat.label}</p>
+                    <p className="mt-2 text-3xl font-bold text-white">
+                      {loading ? "—" : stat.value}
+                    </p>
+                  </div>
+                  <div className="rounded-xl bg-blue-500/10 p-3 text-blue-400">
+                    <Icon className="h-6 w-6" />
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </section>
+      </div>
+    </DashboardLayout>
+  );
+};

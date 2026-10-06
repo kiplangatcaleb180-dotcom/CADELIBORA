@@ -1,0 +1,11 @@
+@media (max-width: 640px) {
+  .glass-panel {
+    border-radius: 1rem;
+  }
+}
+
+@media (min-width: 1920px) {
+  .max-w-7xl {
+    max-w: 1600px;
+  }
+}

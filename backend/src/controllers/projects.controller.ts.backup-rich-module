@@ -1,0 +1,366 @@
+import { Request, Response } from 'express';
+import prisma from '../config/db.js';
+import { AuthenticatedRequest } from '../middleware/auth.js';
+
+export async function getProjectsAndProducts(req: Request, res: Response) {
+  try {
+    const { category, status, search } = req.query;
+    const where: any = {};
+    if (category) where.category = String(category);
+    if (status) where.status = String(status);
+    if (search) {
+      where.OR = [
+        { title: { contains: String(search) } },
+        { description: { contains: String(search) } },
+      ];
+    }
+
+    const projects = await prisma.project.findMany({ where, orderBy: { createdAt: 'desc' } });
+    const products = await prisma.product.findMany({ orderBy: { createdAt: 'desc' } });
+
+    return res.json({ success: true, projects, products });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+}
+
+export async function getProjectById(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+    const project = await prisma.project.findFirst({
+      where: { OR: [{ id }, { slug: id }] },
+    });
+
+    if (!project) {
+      return res.status(404).json({ success: false, message: 'Project not found' });
+    }
+
+    return res.json({ success: true, project });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+}
+
+export async function createProject(req: AuthenticatedRequest, res: Response) {
+  try {
+    if (!req.user) return res.status(401).json({ success: false, message: 'Unauthorized' });
+    const { title, description, category, status, techStack, repoUrl, liveUrl, featured } = req.body;
+
+    const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+
+    const project = await prisma.project.create({
+      data: {
+        title,
+        slug,
+        description,
+        category: category || 'Open Source',
+        status: status || 'Active',
+        techStackJson: JSON.stringify(techStack || []),
+        repoUrl,
+        liveUrl,
+        featured: featured || false,
+      },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: req.user.userId,
+        action: 'CREATE_PROJECT',
+        entity: 'Project',
+        detailsJson: JSON.stringify({ title: project.title }),
+      },
+    });
+
+    return res.status(201).json({ success: true, project });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+}
+
+export async function updateProject(req: AuthenticatedRequest, res: Response) {
+  try {
+    if (!req.user) return res.status(401).json({ success: false, message: 'Unauthorized' });
+    const { id } = req.params;
+    const { title, description, category, status, techStack, repoUrl, liveUrl, featured } = req.body;
+
+    const project = await prisma.project.update({
+      where: { id },
+      data: {
+        title: title || undefined,
+        description: description || undefined,
+        category: category || undefined,
+        status: status || undefined,
+        techStackJson: techStack ? JSON.stringify(techStack) : undefined,
+        repoUrl: repoUrl !== undefined ? repoUrl : undefined,
+        liveUrl: liveUrl !== undefined ? liveUrl : undefined,
+        featured: featured !== undefined ? featured : undefined,
+      },
+    });
+
+await prisma.auditLog.create({
+  data: {
+    userId: req.user.userId,
+    action: 'UPDATE_PROJECT',
+    entity: 'Project',
+    detailsJson: JSON.stringify({
+      projectId: project.id,
+      title: project.title,
+    }),
+  },
+});
+
+    return res.json({ success: true, project });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+}
+
+export async function deleteProject(req: AuthenticatedRequest, res: Response) {
+  try {
+    if (!req.user) return res.status(401).json({ success: false, message: 'Unauthorized' });
+    const { id } = req.params;
+
+    await prisma.project.delete({ where: { id } });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: req.user.userId,
+        action: 'DELETE_PROJECT',
+        entity: 'Project',
+        detailsJson: JSON.stringify({
+          projectId: id,
+        }),
+      },
+    });
+
+    return res.json({ success: true, message: 'Project deleted successfully' });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+}
+
+export async function getProductById(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+
+    const product = await prisma.product.findFirst({
+      where: {
+        OR: [{ id }, { slug: id }],
+      },
+    });
+
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: 'Product not found',
+      });
+    }
+
+    return res.json({
+      success: true,
+      product,
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+}
+
+export async function createProduct(
+  req: AuthenticatedRequest,
+  res: Response
+) {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Unauthorized',
+      });
+    }
+
+    const {
+      title,
+      tagline,
+      description,
+      category,
+      version,
+      status,
+      demoUrl,
+      docsUrl,
+      currency,
+      price,
+    } = req.body;
+
+    if (!title || !tagline || !description || !category) {
+      return res.status(400).json({
+        success: false,
+        message: 'Title, tagline, description and category are required',
+      });
+    }
+
+    const slug = title
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+
+    const product = await prisma.product.create({
+      data: {
+        title,
+        slug,
+        tagline,
+        description,
+        category,
+        version: version || '1.0.0',
+        status: status || 'GA',
+        demoUrl: demoUrl || null,
+        docsUrl: docsUrl || null,
+        currency: currency || 'USD',
+        price: price !== undefined ? Number(price) : 0,
+      },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: req.user.userId,
+        action: 'CREATE_PRODUCT',
+        entity: 'Product',
+        detailsJson: JSON.stringify({
+          productId: product.id,
+          title: product.title,
+        }),
+      },
+    });
+
+    return res.status(201).json({
+      success: true,
+      product,
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+}
+
+export async function updateProduct(
+  req: AuthenticatedRequest,
+  res: Response
+) {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Unauthorized',
+      });
+    }
+
+    const { id } = req.params;
+
+    const {
+      title,
+      tagline,
+      description,
+      category,
+      version,
+      status,
+      demoUrl,
+      docsUrl,
+      currency,
+      price,
+    } = req.body;
+
+    let slug: string | undefined;
+
+    if (title) {
+      slug = title
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+    }
+
+    const product = await prisma.product.update({
+      where: { id },
+      data: {
+        title: title || undefined,
+        slug,
+        tagline: tagline || undefined,
+        description: description || undefined,
+        category: category || undefined,
+        version: version || undefined,
+        status: status || undefined,
+        demoUrl: demoUrl !== undefined ? demoUrl : undefined,
+        docsUrl: docsUrl !== undefined ? docsUrl : undefined,
+        currency: currency || undefined,
+        price: price !== undefined ? Number(price) : undefined,
+      },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: req.user.userId,
+        action: 'UPDATE_PRODUCT',
+        entity: 'Product',
+        detailsJson: JSON.stringify({
+          productId: product.id,
+          title: product.title,
+        }),
+      },
+    });
+
+    return res.json({
+      success: true,
+      product,
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+}
+
+export async function deleteProduct(
+  req: AuthenticatedRequest,
+  res: Response
+) {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Unauthorized',
+      });
+    }
+
+    const { id } = req.params;
+
+    await prisma.product.delete({
+      where: { id },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: req.user.userId,
+        action: 'DELETE_PRODUCT',
+        entity: 'Product',
+        detailsJson: JSON.stringify({
+          productId: id,
+        }),
+      },
+    });
+
+    return res.json({
+      success: true,
+      message: 'Product deleted successfully',
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+}

@@ -1,0 +1,104 @@
+@import './variables.css';
+@import './typography.css';
+@import './responsive.css';
+@import './animations.css';
+@import './themes.css';
+@import './utilities.css';
+@import './components/buttons.css';
+@import './components/cards.css';
+@import './components/navigation.css';
+@import './components/forms.css';
+@import './components/tables.css';
+@import './components/dashboards.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    transition:
+      background-color 0.25s ease,
+      color 0.25s ease;
+  }
+
+  body {
+    margin: 0;
+    min-width: 320px;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: 'Inter', sans-serif;
+    overflow-x: hidden;
+    transition:
+      background-color 0.25s ease,
+      color 0.25s ease;
+  }
+}
+
+/* Glassmorphism & Cyber Card Styling */
+.glass-panel {
+  background: var(--cadelibora-panel-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--cadelibora-border);
+  color: var(--text-primary);
+  transition:
+    background-color 0.25s ease,
+    border-color 0.25s ease,
+    color 0.25s ease;
+}
+
+.glass-panel-hover {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-panel-hover:hover {
+  border-color: rgba(59, 130, 246, 0.4);
+  box-shadow: 0 10px 30px -10px var(--shadow-color);
+  transform: translateY(-2px);
+}
+
+.glow-border {
+  position: relative;
+}
+
+.glow-border::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  background: linear-gradient(
+    90deg,
+    var(--accent-blue),
+    var(--accent-cyan),
+    var(--accent-emerald)
+  );
+  border-radius: inherit;
+  z-index: -1;
+  opacity: 0.3;
+  transition: opacity 0.3s ease;
+}
+
+.glow-border:hover::after {
+  opacity: 0.8;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-blue);
+}

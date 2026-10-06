@@ -1,0 +1,48 @@
+.glass-panel {
+  background: var(--cadelibora-panel-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.glass-panel-hover:hover {
+  border-color: rgba(2, 132, 199, 0.4);
+  box-shadow: 0 10px 30px -10px rgba(2, 132, 199, 0.2);
+}
+
+/* =========================================================
+   CADELIBORA THEME-AWARE UTILITIES
+   ========================================================= */
+
+.theme-bg {
+  background-color: var(--bg-primary);
+}
+
+.theme-bg-secondary {
+  background-color: var(--bg-secondary);
+}
+
+.theme-card {
+  background-color: var(--bg-card);
+}
+
+.theme-input {
+  background-color: var(--bg-input);
+  color: var(--text-primary);
+  border-color: var(--border-color);
+}
+
+.theme-text {
+  color: var(--text-primary);
+}
+
+.theme-text-secondary {
+  color: var(--text-secondary);
+}
+
+.theme-text-muted {
+  color: var(--text-muted);
+}
+
+.theme-border {
+  border-color: var(--border-color);
+}

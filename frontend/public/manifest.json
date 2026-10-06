@@ -1,0 +1,16 @@
+{
+  "name": "CADELIBORA Technology, Research & AI Ecosystem",
+  "short_name": "CADELIBORA",
+  "description": "An interconnected digital ecosystem for learning, technology, research, innovation, and collaboration.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#090d16",
+  "theme_color": "#0284c7",
+  "icons": [
+    {
+      "src": "/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

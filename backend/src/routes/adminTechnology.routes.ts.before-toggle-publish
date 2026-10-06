@@ -1,0 +1,158 @@
+import { Router } from 'express';
+
+import {
+  getAdminTechnologyDomains,
+  createTechnologyDomain,
+  updateTechnologyDomain,
+  deleteTechnologyDomain,
+
+  getAdminTechnologies,
+  createTechnology,
+  updateTechnology,
+  deleteTechnology,
+
+  getAdminTechnologyStack,
+  createTechnologyStack,
+  updateTechnologyStack,
+  deleteTechnologyStack,
+
+  getAdminTechnologySections,
+  createTechnologySection,
+  updateTechnologySection,
+  deleteTechnologySection,
+} from '../controllers/adminTechnology.controller.js';
+
+import {
+  authenticate,
+  authorizeRoles,
+  requirePermission,
+} from '../middleware/auth.js';
+
+const router = Router();
+
+router.use(
+  authenticate,
+  authorizeRoles('SUPER_ADMIN', 'ADMIN')
+);
+
+/*
+|--------------------------------------------------------------------------
+| Technology Domains
+|--------------------------------------------------------------------------
+*/
+
+router.get(
+  '/domains',
+  requirePermission('technology.view'),
+  getAdminTechnologyDomains
+);
+
+router.post(
+  '/domains',
+  requirePermission('technology.create'),
+  createTechnologyDomain
+);
+
+router.put(
+  '/domains/:domainId',
+  requirePermission('technology.update'),
+  updateTechnologyDomain
+);
+
+router.delete(
+  '/domains/:domainId',
+  requirePermission('technology.delete'),
+  deleteTechnologyDomain
+);
+
+/*
+|--------------------------------------------------------------------------
+| Technologies
+|--------------------------------------------------------------------------
+*/
+
+router.get(
+  '/technologies',
+  requirePermission('technology.view'),
+  getAdminTechnologies
+);
+
+router.post(
+  '/technologies',
+  requirePermission('technology.create'),
+  createTechnology
+);
+
+router.put(
+  '/technologies/:technologyId',
+  requirePermission('technology.update'),
+  updateTechnology
+);
+
+router.delete(
+  '/technologies/:technologyId',
+  requirePermission('technology.delete'),
+  deleteTechnology
+);
+
+/*
+|--------------------------------------------------------------------------
+| Technology Stack
+|--------------------------------------------------------------------------
+*/
+
+router.get(
+  '/stack',
+  requirePermission('technology.view'),
+  getAdminTechnologyStack
+);
+
+router.post(
+  '/stack',
+  requirePermission('technology.create'),
+  createTechnologyStack
+);
+
+router.put(
+  '/stack/:stackId',
+  requirePermission('technology.update'),
+  updateTechnologyStack
+);
+
+router.delete(
+  '/stack/:stackId',
+  requirePermission('technology.delete'),
+  deleteTechnologyStack
+);
+
+/*
+|--------------------------------------------------------------------------
+| Technology Sections
+|--------------------------------------------------------------------------
+*/
+
+router.get(
+  '/sections',
+  requirePermission('technology.view'),
+  getAdminTechnologySections
+);
+
+router.post(
+  '/sections',
+  requirePermission('technology.create'),
+  createTechnologySection
+);
+
+router.put(
+  '/sections/:sectionId',
+  requirePermission('technology.update'),
+  updateTechnologySection
+);
+
+router.delete(
+  '/sections/:sectionId',
+  requirePermission('technology.delete'),
+  deleteTechnologySection
+);
+
+export default router;

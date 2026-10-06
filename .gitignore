@@ -1,0 +1,102 @@
+# =========================================================
+# CADELIBORA - Git Ignore
+# =========================================================
+
+# =========================================================
+# Android Studio / Android
+# =========================================================
+*.iml
+.gradle/
+local.properties
+
+# Android Studio project files
+.idea/
+!.idea/.gitignore
+
+# Android build files
+build/
+*/build/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# =========================================================
+# Node.js / Next.js / Frontend / Backend
+# =========================================================
+node_modules/
+.next/
+out/
+dist/
+build/
+coverage/
+
+# =========================================================
+# Environment Files & Secrets
+# =========================================================
+.env
+.env.*
+!.env.example
+
+# =========================================================
+# Logs
+# =========================================================
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# =========================================================
+# Runtime / Temporary Files
+# =========================================================
+*.pid
+*.seed
+*.pid.lock
+.tmp/
+temp/
+tmp/
+
+# =========================================================
+# Prisma / Local Database Files
+# =========================================================
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# =========================================================
+# Operating System Files
+# =========================================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# =========================================================
+# IDE / Editor
+# =========================================================
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# JetBrains IDEs
+.idea/workspace.xml
+.idea/usage.statistics.xml
+.idea/dictionaries/
+.idea/shelf/
+
+# =========================================================
+# Test / Temporary Output
+# =========================================================
+.nyc_output/
+.eslintcache
+.stylelintcache
+
+# =========================================================
+# Generated Files
+# =========================================================
+*.generated.*

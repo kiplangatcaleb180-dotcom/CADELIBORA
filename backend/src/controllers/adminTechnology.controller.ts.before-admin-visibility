@@ -1,0 +1,1462 @@
+import { Request, Response, NextFunction } from 'express';
+import prisma from '../config/db.js';
+
+/* =========================================================
+   TECHNOLOGY DOMAINS
+   ========================================================= */
+
+export const getAdminTechnologyDomains = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const domains =
+  await prisma.technologyDomain.findMany({
+    where: { isPublished: true },
+    include: {
+      technologies: {
+        include: {
+          technology: true,
+        },
+        orderBy: {
+          sortOrder: 'asc',
+        },
+      },
+    },
+    orderBy: [
+      { sortOrder: 'asc' },
+      { name: 'asc' },
+    ],
+  });
+
+    res.json({
+      success: true,
+      domains,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const createTechnologyDomain = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const {
+      name,
+      slug,
+      description,
+      icon,
+      coverImage,
+      technologyIds,
+      sortOrder,
+      isPublished,
+    } = req.body;
+
+    if (!name?.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Technology domain name is required.',
+      });
+    }
+
+    if (!slug?.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Technology domain slug is required.',
+      });
+    }
+
+    if (!description?.trim()) {
+      return res.status(400).json({
+        success: false,
+        message:
+          'Technology domain description is required.',
+      });
+    }
+
+    if (
+      technologyIds !== undefined &&
+      !Array.isArray(technologyIds)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: 'technologyIds must be an array.',
+      });
+    }
+
+    const existingDomain =
+      await prisma.technologyDomain.findUnique({
+        where: {
+          slug: slug.trim(),
+        },
+      });
+
+    if (existingDomain) {
+      return res.status(409).json({
+        success: false,
+        message:
+          'A technology domain with this slug already exists.',
+      });
+    }
+
+    const uniqueTechnologyIds: string[] = [
+      ...new Set<string>(
+        (technologyIds ?? [])
+          .filter(
+            (id: unknown): id is string =>
+              typeof id === 'string' &&
+              id.trim().length > 0
+          )
+          .map((id: string) => id.trim())
+      ),
+    ];
+
+    if (uniqueTechnologyIds.length > 0) {
+      const technologies =
+        await prisma.technology.findMany({
+          where: {
+            id: {
+              in: uniqueTechnologyIds,
+            },
+          },
+          select: {
+            id: true,
+          },
+        });
+
+      if (
+        technologies.length !==
+        uniqueTechnologyIds.length
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            'One or more selected technologies do not exist.',
+        });
+      }
+    }
+
+    const domain =
+      await prisma.technologyDomain.create({
+        data: {
+          name: name.trim(),
+          slug: slug.trim(),
+          description: description.trim(),
+          icon: icon?.trim() || null,
+          coverImage: coverImage?.trim() || null,
+
+          sortOrder:
+            Number.isInteger(Number(sortOrder))
+              ? Number(sortOrder)
+              : 0,
+
+          isPublished:
+            typeof isPublished === 'boolean'
+              ? isPublished
+              : true,
+
+          technologies: {
+            create: uniqueTechnologyIds.map(
+              (technologyId: string, index: number) => ({
+                sortOrder: index,
+
+                technology: {
+                  connect: {
+                    id: technologyId,
+                  },
+                },
+              })
+            ),
+          },
+        },
+
+        include: {
+          technologies: {
+            include: {
+              technology: true,
+            },
+            orderBy: {
+              sortOrder: 'asc',
+            },
+          },
+        },
+      });
+
+    res.status(201).json({
+      success: true,
+      domain,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updateTechnologyDomain = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { domainId } = req.params;
+
+    const existingDomain =
+      await prisma.technologyDomain.findUnique({
+        where: {
+          id: domainId,
+        },
+      });
+
+    if (!existingDomain) {
+      return res.status(404).json({
+        success: false,
+        message: 'Technology domain not found.',
+      });
+    }
+
+    const {
+      name,
+      slug,
+      description,
+      icon,
+      coverImage,
+      technologyIds,
+      sortOrder,
+      isPublished,
+    } = req.body;
+
+    if (name !== undefined && !name?.trim()) {
+      return res.status(400).json({
+        success: false,
+        message:
+          'Technology domain name cannot be empty.',
+      });
+    }
+
+    if (slug !== undefined && !slug?.trim()) {
+      return res.status(400).json({
+        success: false,
+        message:
+          'Technology domain slug cannot be empty.',
+      });
+    }
+
+    if (
+      description !== undefined &&
+      !description?.trim()
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          'Technology domain description cannot be empty.',
+      });
+    }
+
+    if (
+      technologyIds !== undefined &&
+      !Array.isArray(technologyIds)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: 'technologyIds must be an array.',
+      });
+    }
+
+    if (
+      slug !== undefined &&
+      slug.trim() !== existingDomain.slug
+    ) {
+      const slugExists =
+        await prisma.technologyDomain.findUnique({
+          where: {
+            slug: slug.trim(),
+          },
+        });
+
+      if (slugExists) {
+        return res.status(409).json({
+          success: false,
+          message:
+            'A technology domain with this slug already exists.',
+        });
+      }
+    }
+
+    const uniqueTechnologyIds:
+      | string[]
+      | undefined =
+      technologyIds === undefined
+        ? undefined
+        : [
+            ...new Set<string>(
+              technologyIds
+                .filter(
+                  (id: unknown): id is string =>
+                    typeof id === 'string' &&
+                    id.trim().length > 0
+                )
+                .map((id: string) => id.trim())
+            ),
+          ];
+
+    if (
+      uniqueTechnologyIds !== undefined &&
+      uniqueTechnologyIds.length > 0
+    ) {
+      const technologies =
+        await prisma.technology.findMany({
+          where: {
+            id: {
+              in: uniqueTechnologyIds,
+            },
+          },
+          select: {
+            id: true,
+          },
+        });
+
+      if (
+        technologies.length !==
+        uniqueTechnologyIds.length
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            'One or more selected technologies do not exist.',
+        });
+      }
+    }
+
+    const domain =
+      await prisma.$transaction(async (tx) => {
+        if (uniqueTechnologyIds !== undefined) {
+          await tx.technologyDomainTechnology.deleteMany({
+            where: {
+              domainId,
+            },
+          });
+        }
+
+        return tx.technologyDomain.update({
+          where: {
+            id: domainId,
+          },
+
+          data: {
+            ...(name !== undefined && {
+              name: name.trim(),
+            }),
+
+            ...(slug !== undefined && {
+              slug: slug.trim(),
+            }),
+
+            ...(description !== undefined && {
+              description: description.trim(),
+            }),
+
+            ...(icon !== undefined && {
+              icon: icon?.trim() || null,
+            }),
+
+            ...(coverImage !== undefined && {
+              coverImage:
+                coverImage?.trim() || null,
+            }),
+
+            ...(sortOrder !== undefined && {
+              sortOrder: Number(sortOrder) || 0,
+            }),
+
+            ...(isPublished !== undefined && {
+              isPublished: Boolean(isPublished),
+            }),
+
+            ...(uniqueTechnologyIds !== undefined && {
+              technologies: {
+                create: uniqueTechnologyIds.map(
+                  (
+                    technologyId: string,
+                    index: number
+                  ) => ({
+                    sortOrder: index,
+
+                    technology: {
+                      connect: {
+                        id: technologyId,
+                      },
+                    },
+                  })
+                ),
+              },
+            }),
+          },
+
+          include: {
+            technologies: {
+              include: {
+                technology: true,
+              },
+              orderBy: {
+                sortOrder: 'asc',
+              },
+            },
+          },
+        });
+      });
+
+    res.json({
+      success: true,
+      domain,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteTechnologyDomain = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { domainId } = req.params;
+
+    const existingDomain =
+      await prisma.technologyDomain.findUnique({
+        where: {
+          id: domainId,
+        },
+      });
+
+    if (!existingDomain) {
+      return res.status(404).json({
+        success: false,
+        message: 'Technology domain not found.',
+      });
+    }
+
+    await prisma.technologyDomain.delete({
+      where: {
+        id: domainId,
+      },
+    });
+
+    res.json({
+      success: true,
+      message:
+        'Technology domain deleted successfully.',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/* =========================================================
+   TECHNOLOGIES
+   ========================================================= */
+
+export const getAdminTechnologies = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const technologies =
+      await prisma.technology.findMany({
+        orderBy: [
+          { sortOrder: 'asc' },
+          { name: 'asc' },
+        ],
+        include: {
+          domains: {
+            orderBy: {
+              sortOrder: 'asc',
+            },
+            include: {
+              domain: true,
+            },
+          },
+        },
+      });
+
+    res.json({
+      success: true,
+      technologies,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const createTechnology = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const {
+      name,
+      slug,
+      category,
+      description,
+      icon,
+      websiteUrl,
+      docsUrl,
+      version,
+      featured,
+      isPublished,
+      sortOrder,
+    } = req.body;
+
+    if (!name?.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Technology name is required.',
+      });
+    }
+
+    if (!slug?.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Technology slug is required.',
+      });
+    }
+
+    if (!category?.trim()) {
+      return res.status(400).json({
+        success: false,
+        message:
+          'Technology category is required.',
+      });
+    }
+
+    if (!description?.trim()) {
+      return res.status(400).json({
+        success: false,
+        message:
+          'Technology description is required.',
+      });
+    }
+
+    const existingTechnology =
+      await prisma.technology.findUnique({
+        where: {
+          slug: slug.trim(),
+        },
+      });
+
+    if (existingTechnology) {
+      return res.status(409).json({
+        success: false,
+        message:
+          'A technology with this slug already exists.',
+      });
+    }
+
+    const technology =
+      await prisma.technology.create({
+        data: {
+          name: name.trim(),
+          slug: slug.trim(),
+          category: category.trim(),
+          description: description.trim(),
+          icon: icon?.trim() || null,
+          websiteUrl:
+            websiteUrl?.trim() || null,
+          docsUrl:
+            docsUrl?.trim() || null,
+          version:
+            version?.trim() || null,
+
+          featured:
+            typeof featured === 'boolean'
+              ? featured
+              : false,
+
+          isPublished:
+            typeof isPublished === 'boolean'
+              ? isPublished
+              : true,
+
+          sortOrder:
+            Number.isInteger(Number(sortOrder))
+              ? Number(sortOrder)
+              : 0,
+        },
+      });
+
+    res.status(201).json({
+      success: true,
+      technology,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updateTechnology = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { technologyId } = req.params;
+
+    const existingTechnology =
+      await prisma.technology.findUnique({
+        where: {
+          id: technologyId,
+        },
+      });
+
+    if (!existingTechnology) {
+      return res.status(404).json({
+        success: false,
+        message: 'Technology not found.',
+      });
+    }
+
+    const {
+      name,
+      slug,
+      category,
+      description,
+      icon,
+      websiteUrl,
+      docsUrl,
+      version,
+      featured,
+      isPublished,
+      sortOrder,
+    } = req.body;
+
+    if (name !== undefined && !name?.trim()) {
+      return res.status(400).json({
+        success: false,
+        message:
+          'Technology name cannot be empty.',
+      });
+    }
+
+    if (slug !== undefined && !slug?.trim()) {
+      return res.status(400).json({
+        success: false,
+        message:
+          'Technology slug cannot be empty.',
+      });
+    }
+
+    if (
+      category !== undefined &&
+      !category?.trim()
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          'Technology category cannot be empty.',
+      });
+    }
+
+    if (
+      description !== undefined &&
+      !description?.trim()
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          'Technology description cannot be empty.',
+      });
+    }
+
+    if (
+      slug !== undefined &&
+      slug.trim() !== existingTechnology.slug
+    ) {
+      const slugExists =
+        await prisma.technology.findUnique({
+          where: {
+            slug: slug.trim(),
+          },
+        });
+
+      if (slugExists) {
+        return res.status(409).json({
+          success: false,
+          message:
+            'A technology with this slug already exists.',
+        });
+      }
+    }
+
+    const technology =
+      await prisma.technology.update({
+        where: {
+          id: technologyId,
+        },
+
+        data: {
+          ...(name !== undefined && {
+            name: name.trim(),
+          }),
+
+          ...(slug !== undefined && {
+            slug: slug.trim(),
+          }),
+
+          ...(category !== undefined && {
+            category: category.trim(),
+          }),
+
+          ...(description !== undefined && {
+            description: description.trim(),
+          }),
+
+          ...(icon !== undefined && {
+            icon: icon?.trim() || null,
+          }),
+
+          ...(websiteUrl !== undefined && {
+            websiteUrl:
+              websiteUrl?.trim() || null,
+          }),
+
+          ...(docsUrl !== undefined && {
+            docsUrl:
+              docsUrl?.trim() || null,
+          }),
+
+          ...(version !== undefined && {
+            version:
+              version?.trim() || null,
+          }),
+
+          ...(featured !== undefined && {
+            featured: Boolean(featured),
+          }),
+
+          ...(isPublished !== undefined && {
+            isPublished: Boolean(isPublished),
+          }),
+
+          ...(sortOrder !== undefined && {
+            sortOrder: Number(sortOrder) || 0,
+          }),
+        },
+      });
+
+    res.json({
+      success: true,
+      technology,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteTechnology = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { technologyId } = req.params;
+
+    const existingTechnology =
+      await prisma.technology.findUnique({
+        where: {
+          id: technologyId,
+        },
+      });
+
+    if (!existingTechnology) {
+      return res.status(404).json({
+        success: false,
+        message: 'Technology not found.',
+      });
+    }
+
+    await prisma.technology.delete({
+      where: {
+        id: technologyId,
+      },
+    });
+
+    res.json({
+      success: true,
+      message:
+        'Technology deleted successfully.',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/* =========================================================
+   TECHNOLOGY STACK
+   ========================================================= */
+
+export const getAdminTechnologyStack = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const stack =
+      await prisma.technologyStack.findMany({
+        orderBy: [
+          { sortOrder: 'asc' },
+          { name: 'asc' },
+        ],
+      });
+
+    res.json({
+      success: true,
+      stack,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const createTechnologyStack = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const {
+      name,
+      type,
+      description,
+      icon,
+      websiteUrl,
+      sortOrder,
+      isPublished,
+    } = req.body;
+
+    if (!name?.trim()) {
+      return res.status(400).json({
+        success: false,
+        message:
+          'Technology stack name is required.',
+      });
+    }
+
+    if (!type?.trim()) {
+      return res.status(400).json({
+        success: false,
+        message:
+          'Technology stack type is required.',
+      });
+    }
+
+    const stackItem =
+      await prisma.technologyStack.create({
+        data: {
+          name: name.trim(),
+          type: type.trim(),
+          description:
+            description?.trim() || null,
+          icon: icon?.trim() || null,
+          websiteUrl:
+            websiteUrl?.trim() || null,
+
+          sortOrder:
+            Number.isInteger(Number(sortOrder))
+              ? Number(sortOrder)
+              : 0,
+
+          isPublished:
+            typeof isPublished === 'boolean'
+              ? isPublished
+              : true,
+        },
+      });
+
+    res.status(201).json({
+      success: true,
+      stackItem,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updateTechnologyStack = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { stackId } = req.params;
+
+    const existingStack =
+      await prisma.technologyStack.findUnique({
+        where: {
+          id: stackId,
+        },
+      });
+
+    if (!existingStack) {
+      return res.status(404).json({
+        success: false,
+        message:
+          'Technology stack item not found.',
+      });
+    }
+
+    const {
+      name,
+      type,
+      description,
+      icon,
+      websiteUrl,
+      sortOrder,
+      isPublished,
+    } = req.body;
+
+    if (name !== undefined && !name?.trim()) {
+      return res.status(400).json({
+        success: false,
+        message:
+          'Technology stack name cannot be empty.',
+      });
+    }
+
+    if (type !== undefined && !type?.trim()) {
+      return res.status(400).json({
+        success: false,
+        message:
+          'Technology stack type cannot be empty.',
+      });
+    }
+
+    const stackItem =
+      await prisma.technologyStack.update({
+        where: {
+          id: stackId,
+        },
+
+        data: {
+          ...(name !== undefined && {
+            name: name.trim(),
+          }),
+
+          ...(type !== undefined && {
+            type: type.trim(),
+          }),
+
+          ...(description !== undefined && {
+            description:
+              description?.trim() || null,
+          }),
+
+          ...(icon !== undefined && {
+            icon:
+              icon?.trim() || null,
+          }),
+
+          ...(websiteUrl !== undefined && {
+            websiteUrl:
+              websiteUrl?.trim() || null,
+          }),
+
+          ...(sortOrder !== undefined && {
+            sortOrder: Number(sortOrder) || 0,
+          }),
+
+          ...(isPublished !== undefined && {
+            isPublished: Boolean(isPublished),
+          }),
+        },
+      });
+
+    res.json({
+      success: true,
+      stackItem,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteTechnologyStack = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { stackId } = req.params;
+
+    const existingStack =
+      await prisma.technologyStack.findUnique({
+        where: {
+          id: stackId,
+        },
+      });
+
+    if (!existingStack) {
+      return res.status(404).json({
+        success: false,
+        message:
+          'Technology stack item not found.',
+      });
+    }
+
+    await prisma.technologyStack.delete({
+      where: {
+        id: stackId,
+      },
+    });
+
+    res.json({
+      success: true,
+      message:
+        'Technology stack item deleted successfully.',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/* =========================================================
+   TECHNOLOGY SECTIONS
+   ========================================================= */
+
+export const getAdminTechnologySections = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const sections = await prisma.technologySection.findMany({
+      orderBy: [
+        {
+          sortOrder: 'asc',
+        },
+        {
+          title: 'asc',
+        },
+      ],
+      include: {
+        technologies: {
+          include: {
+            technology: true,
+          },
+          orderBy: {
+            sortOrder: 'asc',
+          },
+        },
+      },
+    });
+
+    res.json({
+      success: true,
+      sections,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const createTechnologySection = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const {
+      sectionKey,
+      title,
+      content,
+      imageUrl,
+      technologyIds,
+      sortOrder,
+      isPublished,
+    } = req.body;
+
+    if (!sectionKey?.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Technology section key is required.',
+      });
+    }
+
+    if (!title?.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Technology section title is required.',
+      });
+    }
+
+    if (!content?.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Technology section content is required.',
+      });
+    }
+
+    if (
+      technologyIds !== undefined &&
+      !Array.isArray(technologyIds)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: 'technologyIds must be an array.',
+      });
+    }
+
+    const existingSection =
+      await prisma.technologySection.findUnique({
+        where: {
+          sectionKey: sectionKey.trim(),
+        },
+      });
+
+    if (existingSection) {
+      return res.status(409).json({
+        success: false,
+        message:
+          'A technology section with this key already exists.',
+      });
+    }
+
+    const ids: string[] = Array.isArray(technologyIds)
+      ? [...new Set(
+          technologyIds.filter(
+            (id): id is string =>
+              typeof id === 'string' && id.length > 0
+          )
+        )]
+      : [];
+
+    if (ids.length > 0) {
+      const technologies =
+        await prisma.technology.findMany({
+          where: {
+            id: {
+              in: ids,
+            },
+          },
+          select: {
+            id: true,
+          },
+        });
+
+      if (technologies.length !== ids.length) {
+        return res.status(400).json({
+          success: false,
+          message:
+            'One or more selected technologies do not exist.',
+        });
+      }
+    }
+
+    const section =
+      await prisma.$transaction(async (tx) => {
+        const createdSection =
+          await tx.technologySection.create({
+            data: {
+              sectionKey: sectionKey.trim(),
+              title: title.trim(),
+              content: content.trim(),
+              imageUrl:
+                imageUrl?.trim() || null,
+              sortOrder:
+                Number.isInteger(Number(sortOrder))
+                  ? Number(sortOrder)
+                  : 0,
+              isPublished:
+                typeof isPublished === 'boolean'
+                  ? isPublished
+                  : true,
+            },
+          });
+
+        if (ids.length > 0) {
+          await tx.technologySectionTechnology.createMany({
+            data: ids.map(
+              (technologyId: string, index: number) => ({
+                sectionId: createdSection.id,
+                technologyId,
+                sortOrder: index,
+              })
+            ),
+          });
+        }
+
+        return tx.technologySection.findUnique({
+          where: {
+            id: createdSection.id,
+          },
+          include: {
+            technologies: {
+              include: {
+                technology: true,
+              },
+              orderBy: {
+                sortOrder: 'asc',
+              },
+            },
+          },
+        });
+      });
+
+    res.status(201).json({
+      success: true,
+      section,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updateTechnologySection = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { sectionId } = req.params;
+
+    const existingSection =
+      await prisma.technologySection.findUnique({
+        where: {
+          id: sectionId,
+        },
+      });
+
+    if (!existingSection) {
+      return res.status(404).json({
+        success: false,
+        message: 'Technology section not found.',
+      });
+    }
+
+    const {
+      sectionKey,
+      title,
+      content,
+      imageUrl,
+      technologyIds,
+      sortOrder,
+      isPublished,
+    } = req.body;
+
+    if (
+      sectionKey !== undefined &&
+      !sectionKey?.trim()
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          'Technology section key cannot be empty.',
+      });
+    }
+
+    if (
+      title !== undefined &&
+      !title?.trim()
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          'Technology section title cannot be empty.',
+      });
+    }
+
+    if (
+      content !== undefined &&
+      !content?.trim()
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          'Technology section content cannot be empty.',
+      });
+    }
+
+    if (
+      technologyIds !== undefined &&
+      !Array.isArray(technologyIds)
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: 'technologyIds must be an array.',
+      });
+    }
+
+    if (
+      sectionKey !== undefined &&
+      sectionKey.trim() !== existingSection.sectionKey
+    ) {
+      const keyExists =
+        await prisma.technologySection.findUnique({
+          where: {
+            sectionKey: sectionKey.trim(),
+          },
+        });
+
+      if (keyExists) {
+        return res.status(409).json({
+          success: false,
+          message:
+            'A technology section with this key already exists.',
+        });
+      }
+    }
+
+    const ids: string[] | null =
+      technologyIds !== undefined
+        ? [
+            ...new Set(
+              (technologyIds as unknown[]).filter(
+                (id: unknown): id is string =>
+                  typeof id === 'string' && id.length > 0
+              )
+            ),
+          ]
+        : null;
+
+    if (ids && ids.length > 0) {
+      const technologies =
+        await prisma.technology.findMany({
+          where: {
+            id: {
+              in: ids,
+            },
+          },
+          select: {
+            id: true,
+          },
+        });
+
+      if (technologies.length !== ids.length) {
+        return res.status(400).json({
+          success: false,
+          message:
+            'One or more selected technologies do not exist.',
+        });
+      }
+    }
+
+    const section =
+      await prisma.$transaction(async (tx) => {
+        await tx.technologySection.update({
+          where: {
+            id: sectionId,
+          },
+          data: {
+            ...(sectionKey !== undefined && {
+              sectionKey: sectionKey.trim(),
+            }),
+            ...(title !== undefined && {
+              title: title.trim(),
+            }),
+            ...(content !== undefined && {
+              content: content.trim(),
+            }),
+            ...(imageUrl !== undefined && {
+              imageUrl:
+                imageUrl?.trim() || null,
+            }),
+            ...(sortOrder !== undefined && {
+              sortOrder: Number(sortOrder) || 0,
+            }),
+            ...(isPublished !== undefined && {
+              isPublished: Boolean(isPublished),
+            }),
+          },
+        });
+
+        if (ids !== null) {
+          await tx.technologySectionTechnology.deleteMany({
+            where: {
+              sectionId,
+            },
+          });
+
+          if (ids.length > 0) {
+            await tx.technologySectionTechnology.createMany({
+              data: ids.map(
+                (
+                  technologyId: string,
+                  index: number
+                ) => ({
+                  sectionId,
+                  technologyId,
+                  sortOrder: index,
+                })
+              ),
+            });
+          }
+        }
+
+        return tx.technologySection.findUnique({
+          where: {
+            id: sectionId,
+          },
+          include: {
+            technologies: {
+              include: {
+                technology: true,
+              },
+              orderBy: {
+                sortOrder: 'asc',
+              },
+            },
+          },
+        });
+      });
+
+    res.json({
+      success: true,
+      section,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteTechnologySection = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { sectionId } = req.params;
+
+    const existingSection =
+      await prisma.technologySection.findUnique({
+        where: {
+          id: sectionId,
+        },
+      });
+
+    if (!existingSection) {
+      return res.status(404).json({
+        success: false,
+        message:
+          'Technology section not found.',
+      });
+    }
+
+    await prisma.technologySection.delete({
+      where: {
+        id: sectionId,
+      },
+    });
+
+    res.json({
+      success: true,
+      message:
+        'Technology section deleted successfully.',
+    });
+  } catch (error) {
+    next(error);
+  }
+};

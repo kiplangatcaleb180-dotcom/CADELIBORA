@@ -1,0 +1,382 @@
+import React, { useEffect, useState } from 'react';
+import { useAuth } from '../contexts/AuthContext';
+import { Sidebar } from '../components/layout/Sidebar';
+import { fetchApi } from '../lib/api';
+import { GraduationCap, Award, Bell, User, Check, Edit3, Save, Lock, ShieldCheck, AlertCircle } from 'lucide-react';
+
+export const Dashboard: React.FC = () => {
+  const { user, refreshUser } = useAuth();
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
+
+  // Profile form state
+  const [fullName, setFullName] = useState(user?.fullName || '');
+  const [title, setTitle] = useState(user?.title || '');
+  const [company, setCompany] = useState(user?.profile?.company || '');
+  const [location, setLocation] = useState(user?.profile?.location || '');
+  const [bio, setBio] = useState(user?.profile?.bio || '');
+
+  // Password change state
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordSuccess, setPasswordSuccess] = useState('');
+
+  // Profile completeness calculation
+  const calculateCompleteness = () => {
+    if (!user) return 0;
+    let score = 0;
+    if (user.fullName) score += 20;
+    if (user.title) score += 20;
+    if (user.profile?.company) score += 20;
+    if (user.profile?.location) score += 20;
+    if (user.profile?.bio) score += 20;
+    return score;
+  };
+
+  const completeness = calculateCompleteness();
+
+  const loadNotifications = async () => {
+    try {
+      const res = await fetchApi<{ notifications: any[] }>('/notifications');
+      setNotifications(res.notifications || []);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  useEffect(() => {
+    if (user) {
+      loadNotifications();
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    setFullName(user.fullName || '');
+    setTitle(user.title || '');
+    setCompany(user.profile?.company || '');
+    setLocation(user.profile?.location || '');
+    setBio(user.profile?.bio || '');
+  }, [user]);
+
+  const handleMarkRead = async (id: string) => {
+    try {
+      await fetchApi(`/notifications/${id}/read`, { method: 'PUT' });
+      loadNotifications();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await fetchApi('/auth/profile', {
+        method: 'PUT',
+        body: JSON.stringify({ fullName, title, company, location, bio }),
+      });
+      await refreshUser();
+      setEditingProfile(false);
+      alert('Profile updated successfully!');
+    } catch (err: any) {
+      alert(err.message || 'Profile update failed');
+    }
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordError('');
+    setPasswordSuccess('');
+
+    if (newPassword !== confirmNewPassword) {
+      setPasswordError('New passwords do not match');
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      setPasswordError('New password must be at least 8 characters long');
+      return;
+    }
+
+    try {
+      await fetchApi('/auth/password', {
+        method: 'PUT',
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      setPasswordSuccess('Password changed successfully!');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmNewPassword('');
+    } catch (err: any) {
+      setPasswordError(err.message || 'Password change failed');
+    }
+  };
+
+  if (!user) {
+    return <div className="p-20 text-center text-slate-400">Please sign in to view your Personal Dashboard.</div>;
+  }
+
+  return (
+    <div className="flex min-h-screen">
+      <Sidebar />
+
+      <main className="flex-1 p-8 space-y-8 max-w-6xl">
+        {/* Welcome Header */}
+        <div className="p-8 rounded-3xl glass-panel border border-slate-800 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="space-y-2">
+            <div className="flex items-center gap-3">
+              <span className="px-3 py-1 bg-brand-500/10 text-brand-400 font-mono text-xs font-bold rounded-full">
+                ROLE: {user.role}
+              </span>
+              {user.title && <span className="text-xs font-mono text-slate-400">| {user.title}</span>}
+            </div>
+            <h1 className="text-3xl font-black text-white">Welcome back, {user.fullName}</h1>
+            <p className="text-sm text-slate-300">
+              Track your academy course progress, research bookmarks, notifications, and earned certificates.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => {
+                setEditingProfile(!editingProfile);
+                setChangingPassword(false);
+              }}
+              className="px-4 py-2 rounded-xl bg-slate-900 border border-slate-800 hover:border-brand-500/50 text-brand-400 text-xs font-mono font-bold flex items-center gap-2"
+            >
+              <Edit3 className="w-4 h-4" />
+              <span>{editingProfile ? 'Cancel Edit' : 'Edit Profile'}</span>
+            </button>
+            <button
+              onClick={() => {
+                setChangingPassword(!changingPassword);
+                setEditingProfile(false);
+              }}
+              className="px-4 py-2 rounded-xl bg-slate-900 border border-slate-800 hover:border-cyber-accent/50 text-cyber-accent text-xs font-mono font-bold flex items-center gap-2"
+            >
+              <Lock className="w-4 h-4" />
+              <span>{changingPassword ? 'Cancel Security' : 'Security Settings'}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Onboarding & Profile Completeness */}
+        <div className="p-6 rounded-3xl glass-panel border border-slate-800 space-y-3 font-mono text-xs">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-white">
+              <ShieldCheck className="w-5 h-5 text-emerald-400" />
+              <span className="font-bold uppercase tracking-wider">Profile Completeness Onboarding</span>
+            </div>
+            <span className="text-emerald-400 font-bold">{completeness}% Complete</span>
+          </div>
+          <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+            <div className="bg-emerald-500 h-full rounded-full transition-all" style={{ width: `${completeness}%` }}></div>
+          </div>
+          {completeness < 100 && (
+            <p className="text-slate-400 text-[11px] flex items-center gap-1.5">
+              <AlertCircle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              Complete your title, company, location, and bio in "Edit Profile" to reach 100% profile completeness.
+            </p>
+          )}
+        </div>
+
+        {/* Profile Editor Form */}
+        {editingProfile && (
+          <form onSubmit={handleSaveProfile} className="p-6 rounded-3xl glass-panel border border-slate-800 space-y-4 font-mono text-xs">
+            <h3 className="text-sm font-bold text-white uppercase">Update Database Profile</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="text-slate-400 block mb-1">Full Name</label>
+                <input
+                  type="text"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-white"
+                />
+              </div>
+              <div>
+                <label className="text-slate-400 block mb-1">Title / Designation</label>
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-white"
+                />
+              </div>
+              <div>
+                <label className="text-slate-400 block mb-1">Company / Org</label>
+                <input
+                  type="text"
+                  value={company}
+                  onChange={(e) => setCompany(e.target.value)}
+                  className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-white"
+                />
+              </div>
+              <div>
+                <label className="text-slate-400 block mb-1">Location</label>
+                <input
+                  type="text"
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-white"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="text-slate-400 block mb-1">Bio</label>
+              <textarea
+                value={bio}
+                onChange={(e) => setBio(e.target.value)}
+                className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-white h-20"
+              />
+            </div>
+            <button type="submit" className="px-6 py-2.5 bg-brand-600 hover:bg-brand-500 text-white font-bold rounded-xl flex items-center gap-2">
+              <Save className="w-4 h-4" />
+              <span>Save Profile Changes</span>
+            </button>
+          </form>
+        )}
+
+        {/* Password Change Form */}
+        {changingPassword && (
+          <form onSubmit={handleChangePassword} className="p-6 rounded-3xl glass-panel border border-slate-800 space-y-4 font-mono text-xs">
+            <h3 className="text-sm font-bold text-white uppercase flex items-center gap-2">
+              <Lock className="w-4 h-4 text-cyber-accent" />
+              <span>Change Account Password</span>
+            </h3>
+
+            {passwordError && <p className="p-3 bg-rose-500/10 border border-rose-500/30 text-rose-400 rounded-xl">{passwordError}</p>}
+            {passwordSuccess && <p className="p-3 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-xl">{passwordSuccess}</p>}
+
+            <div className="space-y-3 max-w-md">
+              <div>
+                <label className="text-slate-400 block mb-1">Current Password</label>
+                <input
+                  type="password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  required
+                  className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-white"
+                />
+              </div>
+              <div>
+                <label className="text-slate-400 block mb-1">New Password (min 8 chars)</label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  required
+                  className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-white"
+                />
+              </div>
+              <div>
+                <label className="text-slate-400 block mb-1">Confirm New Password</label>
+                <input
+                  type="password"
+                  value={confirmNewPassword}
+                  onChange={(e) => setConfirmNewPassword(e.target.value)}
+                  required
+                  className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-white"
+                />
+              </div>
+            </div>
+
+            <button type="submit" className="px-6 py-2.5 bg-cyber-accent hover:bg-cyan-500 text-slate-950 font-bold rounded-xl flex items-center gap-2">
+              <Lock className="w-4 h-4" />
+              <span>Update Password</span>
+            </button>
+          </form>
+        )}
+
+        {/* Dashboard Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          {/* Enrolled Courses */}
+          <div className="p-6 rounded-3xl glass-panel border border-slate-800 space-y-4">
+            <h3 className="text-lg font-bold text-white flex items-center gap-2">
+              <GraduationCap className="w-5 h-5 text-brand-400" />
+              <span>Enrolled Academy Courses</span>
+            </h3>
+
+            {user.enrollments && user.enrollments.length > 0 ? (
+              <div className="space-y-3">
+                {user.enrollments.map((e: any) => (
+                  <div key={e.id} className="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-2">
+                    <p className="text-sm font-bold text-white">{e.course?.title}</p>
+                    <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                      <div className="bg-brand-500 h-full rounded-full" style={{ width: `${e.progress}%` }}></div>
+                    </div>
+                    <p className="text-[10px] font-mono text-slate-400 text-right">{e.progress}% Completed</p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-slate-400">No active course enrollments yet.</p>
+            )}
+          </div>
+
+          {/* Earned Certificates */}
+          <div className="p-6 rounded-3xl glass-panel border border-slate-800 space-y-4">
+            <h3 className="text-lg font-bold text-white flex items-center gap-2">
+              <Award className="w-5 h-5 text-emerald-400" />
+              <span>Verifiable Certificates</span>
+            </h3>
+
+            {user.certificates && user.certificates.length > 0 ? (
+              <div className="space-y-3">
+                {user.certificates.map((cert: any) => (
+                  <div key={cert.id} className="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-1">
+                    <p className="text-sm font-bold text-white">{cert.course?.title}</p>
+                    <p className="text-xs font-mono text-emerald-400">Cert #: {cert.certificateNumber}</p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-slate-400">No certificates issued yet. Complete a course to earn one!</p>
+            )}
+          </div>
+        </div>
+
+        {/* Notifications Feed */}
+        <div className="p-6 rounded-3xl glass-panel border border-slate-800 space-y-4 font-mono text-xs">
+          <h3 className="text-lg font-bold text-white flex items-center gap-2">
+            <Bell className="w-5 h-5 text-cyber-accent" />
+            <span>System & Academy Notifications</span>
+          </h3>
+
+          <div className="space-y-2">
+            {notifications.length > 0 ? (
+              notifications.map((n) => (
+                <div
+                  key={n.id}
+                  className={`p-3 rounded-xl border flex items-center justify-between ${
+                    n.isRead ? 'bg-slate-950 border-slate-800 text-slate-400' : 'bg-brand-500/10 border-brand-500/40 text-white font-bold'
+                  }`}
+                >
+                  <div>
+                    <p className="text-brand-400">{n.title}</p>
+                    <p className="text-slate-300 font-sans text-xs mt-0.5">{n.message}</p>
+                  </div>
+
+                  {!n.isRead && (
+                    <button
+                      onClick={() => handleMarkRead(n.id)}
+                      className="p-1.5 bg-brand-600 hover:bg-brand-500 text-white rounded-lg"
+                      title="Mark as read"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              ))
+            ) : (
+              <p className="text-slate-400">No notifications.</p>
+            )}
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+};

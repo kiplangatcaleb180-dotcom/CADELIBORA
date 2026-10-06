@@ -1,0 +1,491 @@
+import { Request, Response } from 'express';
+import bcrypt from 'bcryptjs';
+import prisma from '../config/db.js';
+import { generateToken } from '../auth/jwt.js';
+import { AuthenticatedRequest } from '../middleware/auth.js';
+import { sendEmail } from '../services/emailService.js';
+
+export async function login(req: Request, res: Response) {
+  try {
+    const { email, username, password } = req.body;
+    const normalizedUsername = typeof username === 'string'
+      ? username.trim()
+      : '';
+
+    if (!password || (!email && !normalizedUsername)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email or username and password are required.',
+      });
+    }
+
+    let user;
+
+    // Admin login: username + password
+    if (normalizedUsername) {
+      user = await prisma.user.findFirst({
+        where: { username: { equals: normalizedUsername, mode: 'insensitive' } },
+        include: { profile: true },
+      });
+
+      // Only ADMIN and SUPER_ADMIN accounts may use username login.
+      if (
+        !user ||
+        !['ADMIN', 'SUPER_ADMIN'].includes(user.role)
+      ) {
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid admin credentials.',
+        });
+      }
+    }
+
+    // Normal user login: email + password
+    if (email) {
+      user = await prisma.user.findUnique({
+        where: { email },
+        include: { profile: true },
+      });
+
+      if (!user) {
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid credentials.',
+        });
+      }
+    }
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid credentials.',
+      });
+    }
+
+    const isMatch = await bcrypt.compare(password, user.passwordHash);
+
+    if (!isMatch) {
+      return res.status(401).json({
+        success: false,
+        message: normalizedUsername
+          ? 'Invalid admin credentials.'
+          : 'Invalid credentials.',
+      });
+    }
+
+    if (user.accountStatus !== 'ACTIVE') {
+      return res.status(403).json({
+        success: false,
+        message: 'Your account is currently suspended.',
+      });
+    }
+
+    // Require email verification for normal users.
+    // Admin accounts are expected to already be verified.
+    if (!user.isVerified && !['ADMIN', 'SUPER_ADMIN'].includes(user.role)) {
+      return res.status(403).json({
+        success: false,
+        message: 'Please verify your email address before logging in.',
+        requiresEmailVerification: true,
+      });
+    }
+
+    const token = generateToken({
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: user.id,
+        action: 'LOGIN',
+        entity: 'User',
+        detailsJson: JSON.stringify({
+          loginMethod: normalizedUsername ? 'username' : 'email',
+          email: user.email,
+          role: user.role,
+        }),
+      },
+    });
+
+    return res.json({
+      success: true,
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        username: user.username,
+        fullName: user.fullName,
+        role: user.role,
+        avatarUrl: user.avatarUrl,
+        title: user.title,
+        profile: user.profile,
+      },
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+}
+
+export async function verifyEmail(req: Request, res: Response) {
+  try {
+    const { email, code } = req.body;
+
+    if (!email || !code) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email and verification code are required.',
+      });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found.',
+      });
+    }
+
+    if (user.isVerified) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email address is already verified.',
+      });
+    }
+
+    if (
+      !user.emailVerificationCode ||
+      !user.emailVerificationExpiresAt
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: 'No active verification code exists. Please request a new code.',
+      });
+    }
+
+    if (user.emailVerificationCode !== String(code)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid verification code.',
+      });
+    }
+
+    if (new Date() > user.emailVerificationExpiresAt) {
+      return res.status(400).json({
+        success: false,
+        message: 'Verification code has expired. Please request a new code.',
+      });
+    }
+
+    const verifiedUser = await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        isVerified: true,
+        emailVerificationCode: null,
+        emailVerificationExpiresAt: null,
+      },
+    });
+
+    const token = generateToken({
+      userId: verifiedUser.id,
+      email: verifiedUser.email,
+      role: verifiedUser.role,
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: verifiedUser.id,
+        action: 'VERIFY_EMAIL',
+        entity: 'User',
+        detailsJson: JSON.stringify({
+          email: verifiedUser.email,
+        }),
+      },
+    });
+
+    return res.json({
+      success: true,
+      message: 'Email verified successfully.',
+      token,
+      user: {
+        id: verifiedUser.id,
+        email: verifiedUser.email,
+        fullName: verifiedUser.fullName,
+        role: verifiedUser.role,
+        avatarUrl: verifiedUser.avatarUrl,
+        title: verifiedUser.title,
+      },
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+}
+
+
+
+export async function getMe(req: AuthenticatedRequest, res: Response) {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ success: false, message: 'Not authenticated.' });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.userId },
+      include: {
+        profile: true,
+        enrollments: { include: { course: true } },
+        certificates: { include: { course: true } },
+        notifications: { take: 10, orderBy: { createdAt: 'desc' } },
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+
+    const { passwordHash, ...userData } = user;
+    return res.json({ success: true, user: userData });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+}
+
+export async function updateProfile(req: AuthenticatedRequest, res: Response) {
+  try {
+    if (!req.user) return res.status(401).json({ success: false, message: 'Unauthorized' });
+
+    const { fullName, avatarUrl, title, company, location, bio, skills } = req.body;
+
+    if (avatarUrl !== undefined && avatarUrl !== null && avatarUrl !== '') {
+      if (typeof avatarUrl !== 'string' || avatarUrl.length > 2_800_000 || !/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(avatarUrl)) {
+        return res.status(400).json({ success: false, message: 'Profile image must be a PNG, JPG, or WebP file up to 2 MB.' });
+      }
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id: req.user.userId },
+      data: {
+        fullName: fullName || undefined,
+        avatarUrl: avatarUrl || undefined,
+        title: title || undefined,
+        profile: {
+          upsert: {
+            create: {
+              company,
+              location,
+              bio,
+              skillsJson: JSON.stringify(skills || []),
+            },
+            update: {
+              company,
+              location,
+              bio,
+              skillsJson: JSON.stringify(skills || []),
+            },
+          },
+        },
+      },
+      include: { profile: true },
+    });
+
+    return res.json({ success: true, user: updatedUser });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+}
+
+export async function changePassword(req: AuthenticatedRequest, res: Response) {
+  try {
+    if (!req.user) return res.status(401).json({ success: false, message: 'Unauthorized' });
+
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ success: false, message: 'Current password and new password are required' });
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+    const isMatch = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!isMatch) {
+      return res.status(400).json({ success: false, message: 'Current password does not match' });
+    }
+
+    const newHash = await bcrypt.hash(newPassword, 10);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash: newHash },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: user.id,
+        action: 'CHANGE_PASSWORD',
+        entity: 'User',
+      },
+    });
+
+    return res.json({ success: true, message: 'Password updated successfully' });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+}
+
+export async function getMyAnalytics(req: AuthenticatedRequest, res: Response) {
+  try {
+    if (!req.user) return res.status(401).json({ success: false, message: 'Unauthorized' });
+
+    const userId = req.user.userId;
+
+    const [enrollmentsCount, completedCount, certificatesCount, savedCount, postsCount] = await Promise.all([
+      prisma.enrollment.count({ where: { userId } }),
+      prisma.enrollment.count({ where: { userId, completed: true } }),
+      prisma.certificate.count({ where: { userId } }),
+      prisma.savedResource.count({ where: { userId } }),
+      prisma.communityPost.count({ where: { authorId: userId } }),
+    ]);
+
+    return res.json({
+      success: true,
+      analytics: {
+        enrolledCourses: enrollmentsCount,
+        completedCourses: completedCount,
+        certificatesEarned: certificatesCount,
+        savedResources: savedCount,
+        communityPosts: postsCount,
+      },
+    });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+}
+
+export async function register(req: Request, res: Response) {
+  try {
+    const { email, password, fullName, role } = req.body;
+
+    if (!email || !password || !fullName) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email, password, and full name are required.',
+      });
+    }
+
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        message: 'User with this email already exists.',
+      });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    const allowedRegistrationRoles = [
+      'STUDENT',
+      'DEVELOPER',
+      'RESEARCHER',
+    ];
+
+    const assignedRole = allowedRegistrationRoles.includes(role)
+      ? role
+      : 'STUDENT';
+
+    // Generate a secure 6-digit verification code.
+    const verificationCode = Math.floor(
+      100000 + Math.random() * 900000
+    ).toString();
+
+    // OTP expires after 10 minutes.
+    const verificationExpiresAt = new Date(
+      Date.now() + 10 * 60 * 1000
+    );
+
+    const user = await prisma.user.create({
+      data: {
+        email,
+        passwordHash,
+        fullName,
+        role: assignedRole,
+        isVerified: false,
+        emailVerificationCode: verificationCode,
+        emailVerificationExpiresAt: verificationExpiresAt,
+        profile: {
+          create: {
+            skillsJson: JSON.stringify([]),
+          },
+        },
+      },
+      include: { profile: true },
+    });
+
+    await sendEmail(
+      user.email,
+      'Verify your CADELIBORA account',
+      `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto;">
+          <h2>Welcome to CADELIBORA</h2>
+
+          <p>Hello ${user.fullName},</p>
+
+          <p>
+            Thank you for creating your CADELIBORA account.
+            Use the verification code below to verify your email address:
+          </p>
+
+          <div style="
+            font-size: 32px;
+            font-weight: bold;
+            letter-spacing: 8px;
+            text-align: center;
+            margin: 30px 0;
+          ">
+            ${verificationCode}
+          </div>
+
+          <p>
+            This code expires in <strong>10 minutes</strong>.
+          </p>
+
+          <p>
+            If you did not create this account, you can safely ignore this email.
+          </p>
+
+          <p>
+            — CADELIBORA
+          </p>
+        </div>
+      `
+    );
+
+    return res.status(201).json({
+      success: true,
+      message: 'Registration successful. Please verify your email address.',
+      requiresEmailVerification: true,
+      user: {
+        id: user.id,
+        email: user.email,
+        fullName: user.fullName,
+        role: user.role,
+        avatarUrl: user.avatarUrl,
+        title: user.title,
+      },
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+}

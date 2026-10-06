@@ -1,0 +1,2114 @@
+import {
+  DndContext,
+  closestCenter,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+  arrayMove,
+} from '@dnd-kit/sortable';
+
+import { CSS } from '@dnd-kit/utilities';
+
+import React, { useEffect, useState } from 'react';
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  Save,
+  X,
+  Cpu,
+  Layers,
+  Code2,
+  FileText,
+  CheckCircle2,
+  XCircle,
+  Search,
+  Globe2,
+  Database,
+} from 'lucide-react';
+import { ApiService } from '../../services/apiService';
+
+type Tab = 'domains' | 'technologies' | 'stack' | 'sections';
+
+interface TechnologyDomain {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  icon?: string | null;
+  coverImage?: string | null;
+  technologies?: Array<{
+    id: string;
+    domainId: string;
+    technologyId: string;
+    sortOrder: number;
+    technology: Technology;
+  }>;
+  sortOrder: number;
+  isPublished: boolean;
+}
+
+interface Technology {
+  id: string;
+  name: string;
+  slug: string;
+  category: string;
+  description: string;
+  icon?: string | null;
+  websiteUrl?: string | null;
+  docsUrl?: string | null;
+  version?: string | null;
+  featured: boolean;
+  isPublished: boolean;
+  sortOrder: number;
+}
+
+interface TechnologyStack {
+  id: string;
+  name: string;
+  type: string;
+  description?: string | null;
+  icon?: string | null;
+  websiteUrl?: string | null;
+  sortOrder: number;
+  isPublished: boolean;
+}
+
+interface TechnologySection {
+  id: string;
+  sectionKey: string;
+  title: string;
+  content: string;
+  imageUrl?: string | null;
+  sortOrder: number;
+  isPublished: boolean;
+  technologies?: Array<{
+    id: string;
+    sectionId: string;
+    technologyId: string;
+    sortOrder: number;
+    technology: Technology;
+  }>;
+}
+
+type FormMode = 'create' | 'edit';
+
+const emptyDomain = {
+  name: '',
+  slug: '',
+  description: '',
+  icon: '',
+  coverImage: '',
+  technologyIds: [] as string[],
+  sortOrder: 0,
+  isPublished: true,
+};
+
+const emptyTechnology = {
+  name: '',
+  slug: '',
+  category: '',
+  description: '',
+  icon: '',
+  websiteUrl: '',
+  docsUrl: '',
+  version: '',
+  featured: false,
+  isPublished: true,
+  sortOrder: 0,
+};
+
+const emptyStack = {
+  name: '',
+  type: '',
+  description: '',
+  icon: '',
+  websiteUrl: '',
+  sortOrder: 0,
+  isPublished: true,
+};
+
+const emptySection = {
+  sectionKey: '',
+  title: '',
+  content: '',
+  imageUrl: '',
+  technologyIds: [] as string[],
+  sortOrder: 0,
+  isPublished: true,
+};
+
+export const AdminTechnologyView: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<Tab>('domains');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const [domains, setDomains] = useState<TechnologyDomain[]>([]);
+  const [technologies, setTechnologies] = useState<Technology[]>([]);
+  const [stack, setStack] = useState<TechnologyStack[]>([]);
+  const [sections, setSections] = useState<TechnologySection[]>([]);
+
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  const [formOpen, setFormOpen] = useState(false);
+  const [formMode, setFormMode] = useState<FormMode>('create');
+
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  const [domainForm, setDomainForm] = useState(emptyDomain);
+  const [technologyForm, setTechnologyForm] =
+    useState(emptyTechnology);
+  const [stackForm, setStackForm] = useState(emptyStack);
+  const [sectionForm, setSectionForm] = useState(emptySection);
+
+  const showSuccess = (message: string) => {
+    setSuccess(message);
+    setError('');
+
+    window.setTimeout(() => {
+      setSuccess('');
+    }, 3000);
+  };
+
+  const showError = (message: string) => {
+    setError(message);
+    setSuccess('');
+  };
+
+  const loadAll = async () => {
+    try {
+      setLoading(true);
+      setError('');
+
+      const [
+        domainsResponse,
+        technologiesResponse,
+        stackResponse,
+        sectionsResponse,
+      ] = await Promise.all([
+        ApiService.get<{
+          success: boolean;
+          domains: TechnologyDomain[];
+        }>('/admin/technology/domains'),
+
+        ApiService.get<{
+          success: boolean;
+          technologies: Technology[];
+        }>('/admin/technology/technologies'),
+
+        ApiService.get<{
+          success: boolean;
+          stack: TechnologyStack[];
+        }>('/admin/technology/stack'),
+
+        ApiService.get<{
+          success: boolean;
+          sections: TechnologySection[];
+        }>('/admin/technology/sections'),
+      ]);
+
+      if (domainsResponse.success) {
+        setDomains(domainsResponse.domains);
+      }
+
+      if (technologiesResponse.success) {
+        setTechnologies(technologiesResponse.technologies);
+      }
+
+      if (stackResponse.success) {
+        setStack(stackResponse.stack);
+      }
+
+      if (sectionsResponse.success) {
+        setSections(sectionsResponse.sections);
+      }
+    } catch (err: any) {
+      console.error(err);
+
+      showError(
+        err?.message ||
+          'Failed to load Technology administration data.'
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadAll();
+  }, []);
+
+  const resetForm = () => {
+    setDomainForm(emptyDomain);
+    setTechnologyForm(emptyTechnology);
+    setStackForm(emptyStack);
+    setSectionForm(emptySection);
+
+    setEditingId(null);
+    setFormMode('create');
+    setFormOpen(false);
+  };
+
+  const openCreate = () => {
+    setEditingId(null);
+    setFormMode('create');
+
+    setDomainForm(emptyDomain);
+    setTechnologyForm(emptyTechnology);
+    setStackForm(emptyStack);
+    setSectionForm(emptySection);
+
+    setFormOpen(true);
+    setError('');
+  };
+
+  const openEditDomain = (domain: TechnologyDomain) => {
+    setActiveTab('domains');
+    setFormMode('edit');
+    setEditingId(domain.id);
+
+    setDomainForm({
+  name: domain.name,
+  slug: domain.slug,
+  description: domain.description,
+  icon: domain.icon || '',
+  coverImage: domain.coverImage || '',
+  technologyIds:
+    domain.technologies?.map(
+      (item) => item.technologyId
+    ) || [],
+  sortOrder: domain.sortOrder,
+  isPublished: domain.isPublished,
+});
+
+    setFormOpen(true);
+  };
+
+  const openEditTechnology = (technology: Technology) => {
+    setActiveTab('technologies');
+    setFormMode('edit');
+    setEditingId(technology.id);
+
+    setTechnologyForm({
+      name: technology.name,
+      slug: technology.slug,
+      category: technology.category,
+      description: technology.description,
+      icon: technology.icon || '',
+      websiteUrl: technology.websiteUrl || '',
+      docsUrl: technology.docsUrl || '',
+      version: technology.version || '',
+      featured: technology.featured,
+      isPublished: technology.isPublished,
+      sortOrder: technology.sortOrder,
+    });
+
+    setFormOpen(true);
+  };
+
+  const openEditStack = (item: TechnologyStack) => {
+    setActiveTab('stack');
+    setFormMode('edit');
+    setEditingId(item.id);
+
+    setStackForm({
+      name: item.name,
+      type: item.type,
+      description: item.description || '',
+      icon: item.icon || '',
+      websiteUrl: item.websiteUrl || '',
+      sortOrder: item.sortOrder,
+      isPublished: item.isPublished,
+    });
+
+    setFormOpen(true);
+  };
+
+  const openEditSection = (section: TechnologySection) => {
+    setActiveTab('sections');
+    setFormMode('edit');
+    setEditingId(section.id);
+
+    setSectionForm({
+      sectionKey: section.sectionKey,
+      title: section.title,
+      content: section.content,
+      imageUrl: section.imageUrl || '',
+      technologyIds:
+        section.technologies?.map(
+          (item) => item.technologyId
+        ) || [],
+      sortOrder: section.sortOrder,
+      isPublished: section.isPublished,
+    });
+
+    setFormOpen(true);
+  };
+
+  const saveDomain = async () => {
+  try {
+    setSaving(true);
+
+    const payload = {
+      ...domainForm,
+      sortOrder: Number(domainForm.sortOrder) || 0,
+    };
+
+    if (formMode === 'create') {
+      await ApiService.post(
+        '/admin/technology/domains',
+        payload
+      );
+
+      showSuccess('Technology domain created.');
+    } else if (editingId) {
+      await ApiService.put(
+        `/admin/technology/domains/${editingId}`,
+        payload
+      );
+
+      showSuccess('Technology domain updated.');
+    }
+
+    resetForm();
+    await loadAll();
+  } catch (err: any) {
+    showError(
+      err?.message ||
+        'Failed to save technology domain.'
+    );
+  } finally {
+    setSaving(false);
+  }
+};
+  const saveTechnology = async () => {
+    try {
+      setSaving(true);
+
+      const payload = {
+        ...technologyForm,
+        sortOrder: Number(technologyForm.sortOrder) || 0,
+      };
+
+      if (formMode === 'create') {
+        await ApiService.post(
+          '/admin/technology/technologies',
+          payload
+        );
+
+        showSuccess('Technology created.');
+      } else if (editingId) {
+        await ApiService.put(
+          `/admin/technology/technologies/${editingId}`,
+          payload
+        );
+
+        showSuccess('Technology updated.');
+      }
+
+      resetForm();
+      await loadAll();
+    } catch (err: any) {
+      showError(
+        err?.message ||
+          'Failed to save technology.'
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const saveStack = async () => {
+    try {
+      setSaving(true);
+
+      const payload = {
+        ...stackForm,
+        sortOrder: Number(stackForm.sortOrder) || 0,
+      };
+
+      if (formMode === 'create') {
+        await ApiService.post(
+          '/admin/technology/stack',
+          payload
+        );
+
+        showSuccess('Technology stack item created.');
+      } else if (editingId) {
+        await ApiService.put(
+          `/admin/technology/stack/${editingId}`,
+          payload
+        );
+
+        showSuccess('Technology stack item updated.');
+      }
+
+      resetForm();
+      await loadAll();
+    } catch (err: any) {
+      showError(
+        err?.message ||
+          'Failed to save technology stack item.'
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const saveSection = async () => {
+    try {
+      setSaving(true);
+
+      const payload = {
+        ...sectionForm,
+        sortOrder: Number(sectionForm.sortOrder) || 0,
+      };
+
+      if (formMode === 'create') {
+        await ApiService.post(
+          '/admin/technology/sections',
+          payload
+        );
+
+        showSuccess('Technology section created.');
+      } else if (editingId) {
+        await ApiService.put(
+          `/admin/technology/sections/${editingId}`,
+          payload
+        );
+
+        showSuccess('Technology section updated.');
+      }
+
+      resetForm();
+      await loadAll();
+    } catch (err: any) {
+      showError(
+        err?.message ||
+          'Failed to save technology section.'
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (activeTab === 'domains') {
+      await saveDomain();
+      return;
+    }
+
+    if (activeTab === 'technologies') {
+      await saveTechnology();
+      return;
+    }
+
+    if (activeTab === 'stack') {
+      await saveStack();
+      return;
+    }
+
+    await saveSection();
+  };
+
+  const deleteItem = async (
+    type: Tab,
+    id: string
+  ) => {
+    const confirmed = window.confirm(
+      'Are you sure you want to delete this item?'
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setSaving(true);
+
+      const endpointMap: Record<Tab, string> = {
+        domains: `/admin/technology/domains/${id}`,
+        technologies: `/admin/technology/technologies/${id}`,
+        stack: `/admin/technology/stack/${id}`,
+        sections: `/admin/technology/sections/${id}`,
+      };
+
+      await ApiService.delete(endpointMap[type]);
+
+      showSuccess('Item deleted successfully.');
+
+      await loadAll();
+    } catch (err: any) {
+      showError(
+        err?.message ||
+          'Failed to delete item.'
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const tabItems = [
+    {
+      id: 'domains' as Tab,
+      label: 'Domains',
+      icon: Layers,
+      count: domains.length,
+    },
+    {
+      id: 'technologies' as Tab,
+      label: 'Technologies',
+      icon: Cpu,
+      count: technologies.length,
+    },
+    {
+      id: 'stack' as Tab,
+      label: 'Technology Stack',
+      icon: Code2,
+      count: stack.length,
+    },
+    {
+      id: 'sections' as Tab,
+      label: 'Sections',
+      icon: FileText,
+      count: sections.length,
+    },
+  ];
+
+  const inputClass =
+    'w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-100 placeholder:text-slate-500 outline-none transition [color-scheme:dark] autofill:[-webkit-text-fill-color:#f1f5f9] autofill:shadow-[inset_0_0_0_1000px_rgb(2,6,23)] focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20';
+
+  const labelClass =
+    'mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-400';
+
+  const buttonClass =
+    'inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition';
+
+  const handleDomainTechnologyDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (!over || active.id === over.id) {
+      return;
+    }
+
+    setDomainForm((current) => {
+      const oldIndex = current.technologyIds.indexOf(String(active.id));
+      const newIndex = current.technologyIds.indexOf(String(over.id));
+
+      if (oldIndex === -1 || newIndex === -1) {
+        return current;
+      }
+
+      return {
+        ...current,
+        technologyIds: arrayMove(
+          current.technologyIds,
+          oldIndex,
+          newIndex
+        ),
+      };
+    });
+  };
+
+  const handleSectionTechnologyDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (!over || active.id === over.id) {
+      return;
+    }
+
+    setSectionForm((current) => {
+      const oldIndex = current.technologyIds.indexOf(String(active.id));
+      const newIndex = current.technologyIds.indexOf(String(over.id));
+
+      if (oldIndex === -1 || newIndex === -1) {
+        return current;
+      }
+
+      return {
+        ...current,
+        technologyIds: arrayMove(
+          current.technologyIds,
+          oldIndex,
+          newIndex
+        ),
+      };
+    });
+  };
+
+  const renderDomainForm = () => (
+    <div className="grid gap-5">
+      <div className="grid gap-5 md:grid-cols-2">
+        <div>
+          <label className={labelClass}>Name</label>
+          <input
+            className={inputClass}
+            value={domainForm.name}
+            onChange={(e) =>
+              setDomainForm({
+                ...domainForm,
+                name: e.target.value,
+              })
+            }
+            placeholder="Software Engineering"
+          />
+        </div>
+
+        <div>
+          <label className={labelClass}>Slug</label>
+          <input
+            className={inputClass}
+            value={domainForm.slug}
+            onChange={(e) =>
+              setDomainForm({
+                ...domainForm,
+                slug: e.target.value,
+              })
+            }
+            placeholder="software-engineering"
+          />
+        </div>
+      </div>
+
+      <div>
+        <label className={labelClass}>Description</label>
+        <textarea
+          className={`${inputClass} min-h-28 resize-y`}
+          value={domainForm.description}
+          onChange={(e) =>
+            setDomainForm({
+              ...domainForm,
+              description: e.target.value,
+            })
+          }
+          placeholder="Describe this technology domain..."
+        />
+      </div>
+
+      <div className="grid gap-5 md:grid-cols-2">
+        <div>
+          <label className={labelClass}>Icon</label>
+          <input
+            className={inputClass}
+            value={domainForm.icon}
+            onChange={(e) =>
+              setDomainForm({
+                ...domainForm,
+                icon: e.target.value,
+              })
+            }
+            placeholder="Code2"
+          />
+        </div>
+
+        <div>
+          <label className={labelClass}>
+            Cover Image URL
+          </label>
+          <input
+            className={inputClass}
+            value={domainForm.coverImage}
+            onChange={(e) =>
+              setDomainForm({
+                ...domainForm,
+                coverImage: e.target.value,
+              })
+            }
+            placeholder="https://..."
+          />
+        </div>
+      </div>
+
+      <div>
+  <label className={labelClass}>
+    Technologies
+  </label>
+
+  <div className="rounded-xl border border-slate-700 bg-slate-950 p-4">
+
+    {domainForm.technologyIds.length > 0 && (
+      <div className="mb-4">
+        <div className="mb-2 flex items-center justify-between">
+          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+            Selected Order
+          </p>
+
+          <span className="text-xs text-slate-500">
+            Drag to reorder
+          </span>
+        </div>
+
+        <DndContext
+          collisionDetection={closestCenter}
+          onDragEnd={handleDomainTechnologyDragEnd}
+        >
+          <SortableContext
+            items={domainForm.technologyIds}
+            strategy={verticalListSortingStrategy}
+          >
+            <div className="grid gap-2">
+              {domainForm.technologyIds.map((id) => {
+                const technology = technologies.find(
+                  (item) => item.id === id
+                );
+
+                if (!technology) {
+                  return null;
+                }
+
+                return (
+                  <SortableTechnologyItem
+                    key={technology.id}
+                    id={technology.id}
+                    name={technology.name}
+                    category={technology.category}
+                  />
+                );
+              })}
+            </div>
+          </SortableContext>
+        </DndContext>
+      </div>
+    )}
+
+
+    {technologies.length === 0 ? (
+      <p className="text-sm text-slate-500">
+        No technologies available. Create technologies first.
+      </p>
+    ) : (
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {technologies.map((technology) => {
+          const selected =
+            domainForm.technologyIds.includes(technology.id);
+
+          return (
+            <label
+              key={technology.id}
+              className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition ${
+                selected
+                  ? 'border-brand-500 bg-brand-500/10'
+                  : 'border-slate-800 bg-slate-900/50 hover:border-slate-700'
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={selected}
+                onChange={() => {
+                  setDomainForm((current) => ({
+                    ...current,
+                    technologyIds: selected
+                      ? current.technologyIds.filter(
+                          (id) => id !== technology.id
+                        )
+                      : [
+                          ...current.technologyIds,
+                          technology.id,
+                        ],
+                  }));
+                }}
+                className="mt-1 h-4 w-4 rounded border-slate-600 bg-slate-900 text-brand-600 focus:ring-brand-500"
+              />
+
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-slate-100">
+                  {technology.name}
+                </p>
+
+                <p className="mt-1 text-xs text-slate-500">
+                  {technology.category}
+                </p>
+              </div>
+            </label>
+          );
+        })}
+      </div>
+    )}
+
+    <p className="mt-3 text-xs text-slate-500">
+      Select all technologies that belong to this domain.
+      A technology can belong to multiple domains.
+    </p>
+  </div>
+</div>
+
+      <div className="grid gap-5 md:grid-cols-2">
+        <div>
+          <label className={labelClass}>Sort Order</label>
+          <input
+            type="number"
+            className={inputClass}
+            value={domainForm.sortOrder}
+            onChange={(e) =>
+              setDomainForm({
+                ...domainForm,
+                sortOrder: Number(e.target.value),
+              })
+            }
+          />
+        </div>
+
+        <ToggleField
+          label="Published"
+          checked={domainForm.isPublished}
+          onChange={(value) =>
+            setDomainForm({
+              ...domainForm,
+              isPublished: value,
+            })
+          }
+        />
+      </div>
+    </div>
+  );
+
+  const renderTechnologyForm = () => (
+    <div className="grid gap-5">
+      <div className="grid gap-5 md:grid-cols-2">
+        <div>
+          <label className={labelClass}>Name</label>
+          <input
+            className={inputClass}
+            value={technologyForm.name}
+            onChange={(e) =>
+              setTechnologyForm({
+                ...technologyForm,
+                name: e.target.value,
+              })
+            }
+            placeholder="React"
+          />
+        </div>
+
+        <div>
+          <label className={labelClass}>Slug</label>
+          <input
+            className={inputClass}
+            value={technologyForm.slug}
+            onChange={(e) =>
+              setTechnologyForm({
+                ...technologyForm,
+                slug: e.target.value,
+              })
+            }
+            placeholder="react"
+          />
+        </div>
+      </div>
+
+      <div className="grid gap-5 md:grid-cols-2">
+        <div>
+          <label className={labelClass}>Category</label>
+          <input
+            className={inputClass}
+            value={technologyForm.category}
+            onChange={(e) =>
+              setTechnologyForm({
+                ...technologyForm,
+                category: e.target.value,
+              })
+            }
+            placeholder="Framework"
+          />
+        </div>
+
+        <div>
+          <label className={labelClass}>Version</label>
+          <input
+            className={inputClass}
+            value={technologyForm.version}
+            onChange={(e) =>
+              setTechnologyForm({
+                ...technologyForm,
+                version: e.target.value,
+              })
+            }
+            placeholder="19.x"
+          />
+        </div>
+      </div>
+
+      <div>
+        <label className={labelClass}>Description</label>
+        <textarea
+          className={`${inputClass} min-h-28 resize-y`}
+          value={technologyForm.description}
+          onChange={(e) =>
+            setTechnologyForm({
+              ...technologyForm,
+              description: e.target.value,
+            })
+          }
+          placeholder="Describe the technology..."
+        />
+      </div>
+
+      <div className="grid gap-5 md:grid-cols-2">
+        <div>
+          <label className={labelClass}>Icon</label>
+          <input
+            className={inputClass}
+            value={technologyForm.icon}
+            onChange={(e) =>
+              setTechnologyForm({
+                ...technologyForm,
+                icon: e.target.value,
+              })
+            }
+            placeholder="React"
+          />
+        </div>
+
+        <div>
+          <label className={labelClass}>
+            Website URL
+          </label>
+          <input
+            className={inputClass}
+            value={technologyForm.websiteUrl}
+            onChange={(e) =>
+              setTechnologyForm({
+                ...technologyForm,
+                websiteUrl: e.target.value,
+              })
+            }
+            placeholder="https://react.dev"
+          />
+        </div>
+      </div>
+
+      <div>
+        <label className={labelClass}>
+          Documentation URL
+        </label>
+        <input
+          className={inputClass}
+          value={technologyForm.docsUrl}
+          onChange={(e) =>
+            setTechnologyForm({
+              ...technologyForm,
+              docsUrl: e.target.value,
+            })
+          }
+          placeholder="https://react.dev/learn"
+        />
+      </div>
+
+      <div className="grid gap-5 md:grid-cols-3">
+        <div>
+          <label className={labelClass}>
+            Sort Order
+          </label>
+          <input
+            type="number"
+            className={inputClass}
+            value={technologyForm.sortOrder}
+            onChange={(e) =>
+              setTechnologyForm({
+                ...technologyForm,
+                sortOrder: Number(e.target.value),
+              })
+            }
+          />
+        </div>
+
+        <ToggleField
+          label="Featured"
+          checked={technologyForm.featured}
+          onChange={(value) =>
+            setTechnologyForm({
+              ...technologyForm,
+              featured: value,
+            })
+          }
+        />
+
+        <ToggleField
+          label="Published"
+          checked={technologyForm.isPublished}
+          onChange={(value) =>
+            setTechnologyForm({
+              ...technologyForm,
+              isPublished: value,
+            })
+          }
+        />
+      </div>
+    </div>
+  );
+
+  const renderStackForm = () => (
+    <div className="grid gap-5">
+      <div className="grid gap-5 md:grid-cols-2">
+        <div>
+          <label className={labelClass}>Name</label>
+          <input
+            className={inputClass}
+            value={stackForm.name}
+            onChange={(e) =>
+              setStackForm({
+                ...stackForm,
+                name: e.target.value,
+              })
+            }
+            placeholder="PostgreSQL"
+          />
+        </div>
+
+        <div>
+          <label className={labelClass}>Type</label>
+          <input
+            className={inputClass}
+            value={stackForm.type}
+            onChange={(e) =>
+              setStackForm({
+                ...stackForm,
+                type: e.target.value,
+              })
+            }
+            placeholder="Database"
+          />
+        </div>
+      </div>
+
+      <div>
+        <label className={labelClass}>
+          Description
+        </label>
+        <textarea
+          className={`${inputClass} min-h-28 resize-y`}
+          value={stackForm.description}
+          onChange={(e) =>
+            setStackForm({
+              ...stackForm,
+              description: e.target.value,
+            })
+          }
+          placeholder="Describe this stack technology..."
+        />
+      </div>
+
+      <div className="grid gap-5 md:grid-cols-2">
+        <div>
+          <label className={labelClass}>Icon</label>
+          <input
+            className={inputClass}
+            value={stackForm.icon}
+            onChange={(e) =>
+              setStackForm({
+                ...stackForm,
+                icon: e.target.value,
+              })
+            }
+            placeholder="Database"
+          />
+        </div>
+
+        <div>
+          <label className={labelClass}>
+            Website URL
+          </label>
+          <input
+            className={inputClass}
+            value={stackForm.websiteUrl}
+            onChange={(e) =>
+              setStackForm({
+                ...stackForm,
+                websiteUrl: e.target.value,
+              })
+            }
+            placeholder="https://..."
+          />
+        </div>
+      </div>
+
+      <div className="grid gap-5 md:grid-cols-2">
+        <div>
+          <label className={labelClass}>
+            Sort Order
+          </label>
+          <input
+            type="number"
+            className={inputClass}
+            value={stackForm.sortOrder}
+            onChange={(e) =>
+              setStackForm({
+                ...stackForm,
+                sortOrder: Number(e.target.value),
+              })
+            }
+          />
+        </div>
+
+        <ToggleField
+          label="Published"
+          checked={stackForm.isPublished}
+          onChange={(value) =>
+            setStackForm({
+              ...stackForm,
+              isPublished: value,
+            })
+          }
+        />
+      </div>
+    </div>
+  );
+
+  const renderSectionForm = () => (
+    <div className="grid gap-5">
+      <div className="grid gap-5 md:grid-cols-2">
+        <div>
+          <label className={labelClass}>
+            Section Key
+          </label>
+          <input
+            className={inputClass}
+            value={sectionForm.sectionKey}
+            onChange={(e) =>
+              setSectionForm({
+                ...sectionForm,
+                sectionKey: e.target.value,
+              })
+            }
+            placeholder="overview"
+          />
+        </div>
+
+        <div>
+          <label className={labelClass}>Title</label>
+          <input
+            className={inputClass}
+            value={sectionForm.title}
+            onChange={(e) =>
+              setSectionForm({
+                ...sectionForm,
+                title: e.target.value,
+              })
+            }
+            placeholder="Technology at CADELIBORA"
+          />
+        </div>
+      </div>
+
+      <div>
+        <label className={labelClass}>
+          Content
+        </label>
+
+        <textarea
+          className={`${inputClass} min-h-48 resize-y`}
+          value={sectionForm.content}
+          onChange={(e) =>
+            setSectionForm({
+              ...sectionForm,
+              content: e.target.value,
+            })
+          }
+          placeholder="Write the content for this Technology section..."
+        />
+      </div>
+
+      <div>
+        <label className={labelClass}>
+          Image URL
+        </label>
+
+        <input
+          className={inputClass}
+          value={sectionForm.imageUrl}
+          onChange={(e) =>
+            setSectionForm({
+              ...sectionForm,
+              imageUrl: e.target.value,
+            })
+          }
+          placeholder="https://..."
+        />
+      </div>
+
+      <div>
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <label className={labelClass.replace('mb-2 ', '')}>
+            Assigned Technologies
+          </label>
+
+          <span className="text-xs text-slate-500">
+            {sectionForm.technologyIds.length} selected
+          </span>
+        </div>
+
+        {sectionForm.technologyIds.length > 0 && (
+          <div className="mb-4">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                Selected Order
+              </p>
+
+              <span className="text-xs text-slate-500">
+                Drag to reorder
+              </span>
+            </div>
+
+            <DndContext
+              collisionDetection={closestCenter}
+              onDragEnd={handleSectionTechnologyDragEnd}
+            >
+              <SortableContext
+                items={sectionForm.technologyIds}
+                strategy={verticalListSortingStrategy}
+              >
+                <div className="grid gap-2">
+                  {sectionForm.technologyIds.map((id) => {
+                    const technology = technologies.find(
+                      (item) => item.id === id
+                    );
+
+                    if (!technology) {
+                      return null;
+                    }
+
+                    return (
+                      <SortableTechnologyItem
+                        key={technology.id}
+                        id={technology.id}
+                        name={technology.name}
+                        category={technology.category}
+                      />
+                    );
+                  })}
+                </div>
+              </SortableContext>
+            </DndContext>
+          </div>
+        )}
+
+        <div className="max-h-72 overflow-y-auto rounded-xl border border-slate-700 bg-slate-950 p-2">
+          {technologies.length === 0 ? (
+            <p className="px-3 py-4 text-sm text-slate-500">
+              No technologies available.
+            </p>
+          ) : (
+            <div className="grid gap-2 md:grid-cols-2">
+              {technologies
+                .slice()
+                .sort(
+                  (a, b) =>
+                    a.sortOrder - b.sortOrder ||
+                    a.name.localeCompare(b.name)
+                )
+                .map((technology) => {
+                  const selected =
+                    sectionForm.technologyIds.includes(
+                      technology.id
+                    );
+
+                  return (
+                    <button
+                      key={technology.id}
+                      type="button"
+                      onClick={() => {
+                        setSectionForm((current) => ({
+                          ...current,
+                          technologyIds: selected
+                            ? current.technologyIds.filter(
+                                (id) =>
+                                  id !== technology.id
+                              )
+                            : [
+                                ...current.technologyIds,
+                                technology.id,
+                              ],
+                        }));
+                      }}
+                      className={`flex items-center gap-3 rounded-xl border p-3 text-left transition ${
+                        selected
+                          ? 'border-brand-500/50 bg-brand-500/10'
+                          : 'border-slate-800 bg-slate-900/60 hover:border-slate-700 hover:bg-slate-900'
+                      }`}
+                    >
+                      <div
+                        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition ${
+                          selected
+                            ? 'border-brand-500 bg-brand-500 text-white'
+                            : 'border-slate-600 bg-slate-950'
+                        }`}
+                      >
+                        {selected && (
+                          <span className="text-xs font-bold">
+                            ✓
+                          </span>
+                        )}
+                      </div>
+
+                      {technology.icon ? (
+                        <img
+                          src={technology.icon}
+                          alt=""
+                          className="h-7 w-7 shrink-0 object-contain"
+                        />
+                      ) : (
+                        <div className="h-7 w-7 shrink-0 rounded-lg bg-slate-800" />
+                      )}
+
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-slate-100">
+                          {technology.name}
+                        </p>
+
+                        <p className="mt-0.5 truncate text-xs text-slate-500">
+                          {technology.category}
+                        </p>
+                      </div>
+                    </button>
+                  );
+                })}
+            </div>
+          )}
+        </div>
+
+        <p className="mt-2 text-xs text-slate-500">
+          Select the technologies that should appear inside this
+          section on the public Technology page.
+        </p>
+      </div>
+
+      <div className="grid gap-5 md:grid-cols-2">
+        <div>
+          <label className={labelClass}>
+            Sort Order
+          </label>
+
+          <input
+            type="number"
+            className={inputClass}
+            value={sectionForm.sortOrder}
+            onChange={(e) =>
+              setSectionForm({
+                ...sectionForm,
+                sortOrder: Number(e.target.value),
+              })
+            }
+          />
+        </div>
+
+        <ToggleField
+          label="Published"
+          checked={sectionForm.isPublished}
+          onChange={(value) =>
+            setSectionForm({
+              ...sectionForm,
+              isPublished: value,
+            })
+          }
+        />
+      </div>
+    </div>
+  );
+
+  const renderTable = () => {
+    if (activeTab === 'domains') {
+      if (!domains.length) {
+        return <EmptyState label="technology domains" />;
+      }
+
+      return (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[800px]">
+            <thead>
+              <tr className="border-b border-slate-800 text-left text-xs uppercase tracking-wider text-slate-500">
+                <th className="px-4 py-4">Domain</th>
+                <th className="px-4 py-4">Slug</th>
+                <th className="px-4 py-4">Order</th>
+                <th className="px-4 py-4">Status</th>
+                <th className="px-4 py-4 text-right">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {filteredDomains.map((domain) => (
+                <tr
+                  key={domain.id}
+                  className="border-b border-slate-800/70 hover:bg-slate-900/50"
+                >
+                  <td className="px-4 py-4">
+                    <div className="font-semibold text-slate-100">
+                      {domain.name}
+                    </div>
+
+                    <div className="mt-1 max-w-md truncate text-xs text-slate-500">
+                      {domain.description}
+                    </div>
+                  </td>
+
+                  <td className="px-4 py-4 font-mono text-xs text-slate-400">
+                    {domain.slug}
+                  </td>
+
+                  <td className="px-4 py-4 text-sm text-slate-400">
+                    {domain.sortOrder}
+                  </td>
+
+                  <td className="px-4 py-4">
+                    <StatusBadge
+                      published={domain.isPublished}
+                    />
+                  </td>
+
+                  <td className="px-4 py-4">
+                    <ActionButtons
+                      onEdit={() =>
+                        openEditDomain(domain)
+                      }
+                      onDelete={() =>
+                        deleteItem(
+                          'domains',
+                          domain.id
+                        )
+                      }
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+
+    if (activeTab === 'technologies') {
+      if (!technologies.length) {
+        return <EmptyState label="technologies" />;
+      }
+
+      return (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[1000px]">
+            <thead>
+              <tr className="border-b border-slate-800 text-left text-xs uppercase tracking-wider text-slate-500">
+                <th className="px-4 py-4">Technology</th>
+                <th className="px-4 py-4">Category</th>
+                <th className="px-4 py-4">Version</th>
+                <th className="px-4 py-4">Featured</th>
+                <th className="px-4 py-4">Status</th>
+                <th className="px-4 py-4 text-right">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {filteredTechnologies.map((technology) => (
+                <tr
+                  key={technology.id}
+                  className="border-b border-slate-800/70 hover:bg-slate-900/50"
+                >
+                  <td className="px-4 py-4">
+                    <div className="font-semibold text-slate-100">
+                      {technology.name}
+                    </div>
+
+                    <div className="mt-1 text-xs text-slate-500">
+                      {technology.slug}
+                    </div>
+                  </td>
+
+                  <td className="px-4 py-4 text-sm text-slate-400">
+                    {technology.category}
+                  </td>
+
+                  <td className="px-4 py-4 text-sm text-slate-400">
+                    {technology.version || '—'}
+                  </td>
+
+                  <td className="px-4 py-4">
+                    {technology.featured ? (
+                      <CheckCircle2 className="h-5 w-5 text-emerald-400" />
+                    ) : (
+                      <XCircle className="h-5 w-5 text-slate-600" />
+                    )}
+                  </td>
+
+                  <td className="px-4 py-4">
+                    <StatusBadge
+                      published={technology.isPublished}
+                    />
+                  </td>
+
+                  <td className="px-4 py-4">
+                    <ActionButtons
+                      onEdit={() =>
+                        openEditTechnology(
+                          technology
+                        )
+                      }
+                      onDelete={() =>
+                        deleteItem(
+                          'technologies',
+                          technology.id
+                        )
+                      }
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+
+    if (activeTab === 'stack') {
+      if (!stack.length) {
+        return <EmptyState label="technology stack items" />;
+      }
+
+      return (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[900px]">
+            <thead>
+              <tr className="border-b border-slate-800 text-left text-xs uppercase tracking-wider text-slate-500">
+                <th className="px-4 py-4">Name</th>
+                <th className="px-4 py-4">Type</th>
+                <th className="px-4 py-4">Website</th>
+                <th className="px-4 py-4">Order</th>
+                <th className="px-4 py-4">Status</th>
+                <th className="px-4 py-4 text-right">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {filteredStack.map((item) => (
+                <tr
+                  key={item.id}
+                  className="border-b border-slate-800/70 hover:bg-slate-900/50"
+                >
+                  <td className="px-4 py-4">
+                    <div className="font-semibold text-slate-100">
+                      {item.name}
+                    </div>
+
+                    <div className="mt-1 text-xs text-slate-500">
+                      {item.description || 'No description'}
+                    </div>
+                  </td>
+
+                  <td className="px-4 py-4 text-sm text-slate-400">
+                    {item.type}
+                  </td>
+
+                  <td className="px-4 py-4 text-xs text-brand-400">
+                    {item.websiteUrl || '—'}
+                  </td>
+
+                  <td className="px-4 py-4 text-sm text-slate-400">
+                    {item.sortOrder}
+                  </td>
+
+                  <td className="px-4 py-4">
+                    <StatusBadge
+                      published={item.isPublished}
+                    />
+                  </td>
+
+                  <td className="px-4 py-4">
+                    <ActionButtons
+                      onEdit={() =>
+                        openEditStack(item)
+                      }
+                      onDelete={() =>
+                        deleteItem(
+                          'stack',
+                          item.id
+                        )
+                      }
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+
+    if (!sections.length) {
+      return <EmptyState label="technology sections" />;
+    }
+
+    return (
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[900px]">
+          <thead>
+            <tr className="border-b border-slate-800 text-left text-xs uppercase tracking-wider text-slate-500">
+              <th className="px-4 py-4">Section</th>
+              <th className="px-4 py-4">Key</th>
+              <th className="px-4 py-4">Order</th>
+              <th className="px-4 py-4">Status</th>
+              <th className="px-4 py-4 text-right">
+                Actions
+              </th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {filteredSections.map((section) => (
+              <tr
+                key={section.id}
+                className="border-b border-slate-800/70 hover:bg-slate-900/50"
+              >
+                <td className="px-4 py-4">
+                  <div className="font-semibold text-slate-100">
+                    {section.title}
+                  </div>
+
+                  <div className="mt-1 max-w-md truncate text-xs text-slate-500">
+                    {section.content}
+                  </div>
+                </td>
+
+                <td className="px-4 py-4 font-mono text-xs text-slate-400">
+                  {section.sectionKey}
+                </td>
+
+                <td className="px-4 py-4 text-sm text-slate-400">
+                  {section.sortOrder}
+                </td>
+
+                <td className="px-4 py-4">
+                  <StatusBadge
+                    published={section.isPublished}
+                  />
+                </td>
+
+                <td className="px-4 py-4">
+                  <ActionButtons
+                    onEdit={() =>
+                      openEditSection(section)
+                    }
+                    onDelete={() =>
+                      deleteItem(
+                        'sections',
+                        section.id
+                      )
+                    }
+                  />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+
+  const filteredDomains = domains.filter((item) =>
+    !normalizedSearch ||
+    item.name.toLowerCase().includes(normalizedSearch) ||
+    item.slug.toLowerCase().includes(normalizedSearch)
+  );
+
+  const filteredTechnologies = technologies.filter((item) =>
+    !normalizedSearch ||
+    item.name.toLowerCase().includes(normalizedSearch) ||
+    item.slug.toLowerCase().includes(normalizedSearch) ||
+    item.category.toLowerCase().includes(normalizedSearch)
+  );
+
+  const filteredStack = stack.filter((item) =>
+    !normalizedSearch ||
+    item.name.toLowerCase().includes(normalizedSearch) ||
+    item.type.toLowerCase().includes(normalizedSearch)
+  );
+
+  const filteredSections = sections.filter((item) =>
+    !normalizedSearch ||
+    item.title.toLowerCase().includes(normalizedSearch) ||
+    item.sectionKey.toLowerCase().includes(normalizedSearch)
+  );
+
+  const publishedTechnologies =
+    technologies.filter((item) => item.isPublished).length;
+
+  const publishedDomains =
+    domains.filter((item) => item.isPublished).length;
+
+  const publishedSections =
+    sections.filter((item) => item.isPublished).length;
+
+  return (
+    <div className="min-h-full bg-slate-950 p-4 text-slate-100 md:p-6 lg:p-8">
+      <div className="mx-auto max-w-7xl space-y-6">
+
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-500/10 text-brand-400">
+              <Cpu className="h-6 w-6" />
+            </div>
+
+            <div>
+              <h1 className="text-2xl font-bold">Technology Center</h1>
+              <p className="mt-1 text-sm text-slate-400">
+                Manage technology domains, technologies, stacks, and content sections.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={openCreate}
+            className={`${buttonClass} bg-brand-600 text-white hover:bg-brand-500`}
+          >
+            <Plus className="h-4 w-4" />
+            Add {activeTab === 'domains'
+              ? 'Domain'
+              : activeTab === 'technologies'
+                ? 'Technology'
+                : activeTab === 'stack'
+                  ? 'Stack Item'
+                  : 'Section'}
+          </button>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+            <p className="text-xs uppercase tracking-wide text-slate-500">Domains</p>
+            <p className="mt-2 text-2xl font-bold">{domains.length}</p>
+            <p className="mt-1 text-xs text-emerald-400">{publishedDomains} published</p>
+          </div>
+
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+            <p className="text-xs uppercase tracking-wide text-slate-500">Technologies</p>
+            <p className="mt-2 text-2xl font-bold">{technologies.length}</p>
+            <p className="mt-1 text-xs text-emerald-400">{publishedTechnologies} published</p>
+          </div>
+
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+            <p className="text-xs uppercase tracking-wide text-slate-500">Stack Items</p>
+            <p className="mt-2 text-2xl font-bold">{stack.length}</p>
+            <p className="mt-1 text-xs text-slate-500">Technology stack</p>
+          </div>
+
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+            <p className="text-xs uppercase tracking-wide text-slate-500">Sections</p>
+            <p className="mt-2 text-2xl font-bold">{sections.length}</p>
+            <p className="mt-1 text-xs text-emerald-400">{publishedSections} published</p>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={`Search ${activeTab}...`}
+              className={`${inputClass} pl-10 pr-10`}
+            />
+
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-200"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+
+          {normalizedSearch && (
+            <p className="mt-3 text-xs text-slate-500">
+              Showing filtered results for "{searchQuery}"
+            </p>
+          )}
+        </div>
+
+        {error && (
+          <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-300">
+            {error}
+          </div>
+        )}
+
+        {success && (
+          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4 text-sm text-emerald-300">
+            {success}
+          </div>
+        )}
+
+        <div className="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-900/60">
+          <div className="flex min-w-max">
+            {tabItems.map((tab) => {
+              const Icon = tab.icon;
+              const active = activeTab === tab.id;
+
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex items-center gap-2 border-b-2 px-5 py-4 text-sm font-semibold ${
+                    active
+                      ? 'border-brand-500 text-brand-400'
+                      : 'border-transparent text-slate-500 hover:text-slate-200'
+                  }`}
+                >
+                  <Icon className="h-4 w-4" />
+                  {tab.label}
+                  <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[10px]">
+                    {tab.count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/60">
+          {loading ? (
+            <div className="flex min-h-72 items-center justify-center text-sm text-slate-500">
+              Loading technology data...
+            </div>
+          ) : (
+            renderTable()
+          )}
+        </div>
+      </div>
+
+      {formOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl">
+
+            <div className="flex items-center justify-between border-b border-slate-800 px-6 py-5">
+              <div>
+                <h2 className="text-lg font-bold">
+                  {formMode === 'create' ? 'Create' : 'Edit'}{' '}
+                  {activeTab === 'domains'
+                    ? 'Technology Domain'
+                    : activeTab === 'technologies'
+                      ? 'Technology'
+                      : activeTab === 'stack'
+                        ? 'Technology Stack Item'
+                        : 'Technology Section'}
+                </h2>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setFormOpen(false)}
+                className="rounded-lg p-2 text-slate-500 hover:bg-slate-800 hover:text-slate-200"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto px-6 py-6">
+              {activeTab === 'domains' && renderDomainForm()}
+              {activeTab === 'technologies' && renderTechnologyForm()}
+              {activeTab === 'stack' && renderStackForm()}
+              {activeTab === 'sections' && renderSectionForm()}
+            </div>
+
+            <div className="flex justify-end gap-3 border-t border-slate-800 px-6 py-4">
+              <button
+                type="button"
+                onClick={() => setFormOpen(false)}
+                disabled={saving}
+                className={`${buttonClass} border border-slate-700 bg-slate-800 text-slate-300`}
+              >
+                <X className="h-4 w-4" />
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving}
+                className={`${buttonClass} bg-brand-600 text-white disabled:opacity-50`}
+              >
+                {saving ? (
+                  'Saving...'
+                ) : (
+                  <>
+                    <Save className="h-4 w-4" />
+                    Save Changes
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+};
+
+interface SortableTechnologyItemProps {
+  id: string;
+  name: string;
+  category: string;
+}
+
+const SortableTechnologyItem = ({
+  id,
+  name,
+  category,
+}: SortableTechnologyItemProps) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+  } = useSortable({ id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex items-center gap-3 rounded-lg border border-slate-700 bg-slate-900 p-3"
+    >
+      <button
+        type="button"
+        {...attributes}
+        {...listeners}
+        className="cursor-grab touch-none text-lg text-slate-500 hover:text-slate-200"
+        title="Drag to reorder"
+      >
+        ⋮⋮
+      </button>
+
+      <div className="min-w-0">
+        <p className="text-sm font-medium text-slate-100">
+          {name}
+        </p>
+
+        <p className="text-xs text-slate-500">
+          {category}
+        </p>
+      </div>
+    </div>
+  );
+};
+
+  const ToggleField: React.FC<{
+  label: string;
+  checked: boolean;
+  onChange: (value: boolean) => void;
+}> = ({ label, checked, onChange }) => (
+  <div>
+    <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-400">
+      {label}
+    </label>
+
+    <button
+      type="button"
+      onClick={() => onChange(!checked)}
+      className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 text-sm transition ${
+        checked
+          ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+          : 'border-slate-700 bg-slate-900/70 text-slate-400'
+      }`}
+    >
+      <span>
+        {checked ? 'Enabled' : 'Disabled'}
+      </span>
+
+      <span
+        className={`h-5 w-10 rounded-full p-0.5 transition ${
+          checked
+            ? 'bg-emerald-500'
+            : 'bg-slate-700'
+        }`}
+      >
+        <span
+          className={`block h-4 w-4 rounded-full bg-white transition ${
+            checked ? 'translate-x-5' : 'translate-x-0'
+          }`}
+        />
+      </span>
+    </button>
+  </div>
+);
+
+const StatusBadge: React.FC<{
+  published: boolean;
+}> = ({ published }) => (
+  <span
+    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+      published
+        ? 'bg-emerald-500/10 text-emerald-300'
+        : 'bg-slate-800 text-slate-500'
+    }`}
+  >
+    <span
+      className={`h-1.5 w-1.5 rounded-full ${
+        published
+          ? 'bg-emerald-400'
+          : 'bg-slate-600'
+      }`}
+    />
+
+    {published ? 'Published' : 'Hidden'}
+  </span>
+);
+
+const ActionButtons: React.FC<{
+  onEdit: () => void;
+  onDelete: () => void;
+}> = ({ onEdit, onDelete }) => (
+  <div className="flex justify-end gap-2">
+    <button
+      type="button"
+      onClick={onEdit}
+      className="rounded-lg p-2 text-slate-400 transition hover:bg-brand-500/10 hover:text-brand-400"
+      title="Edit"
+    >
+      <Pencil className="h-4 w-4" />
+    </button>
+
+    <button
+      type="button"
+      onClick={onDelete}
+      className="rounded-lg p-2 text-slate-400 transition hover:bg-red-500/10 hover:text-red-400"
+      title="Delete"
+    >
+      <Trash2 className="h-4 w-4" />
+    </button>
+  </div>
+);
+
+const EmptyState: React.FC<{
+  label: string;
+}> = ({ label }) => (
+  <div className="flex min-h-60 flex-col items-center justify-center px-6 text-center">
+    <Cpu className="mb-4 h-10 w-10 text-slate-700" />
+
+    <h3 className="font-semibold text-slate-300">
+      No {label} yet
+    </h3>
+
+    <p className="mt-2 text-sm text-slate-500">
+      Use the Add button above to create the first item.
+    </p>
+  </div>
+);

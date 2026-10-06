@@ -1,0 +1,30 @@
+import { Router } from 'express';
+import { getProjectsAndProducts, getProjectById, createProject, updateProject, deleteProject } from '../controllers/projects.controller.js';
+import { authenticate, requirePermission } from '../middleware/auth.js';
+
+const router = Router();
+
+router.get('/', getProjectsAndProducts);
+router.get('/:id', getProjectById);
+router.post(
+  '/',
+  authenticate,
+  requirePermission('projects.create'),
+  createProject
+);
+
+router.put(
+  '/:id',
+  authenticate,
+  requirePermission('projects.update'),
+  updateProject
+);
+
+router.delete(
+  '/:id',
+  authenticate,
+  requirePermission('projects.delete'),
+  deleteProject
+);
+
+export default router;

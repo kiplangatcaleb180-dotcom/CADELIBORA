@@ -1,0 +1,6 @@
+.cadelibora-card {
+  padding: 2rem;
+  border-radius: 1.5rem;
+  background: var(--cadelibora-panel-bg);
+  border: 1px solid var(--cadelibora-border);
+}

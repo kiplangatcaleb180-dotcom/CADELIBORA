@@ -1,0 +1,267 @@
+import { Request, Response, NextFunction } from 'express';
+import prisma from '../config/db.js';
+
+export const getAdminOrganization = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const organization = await prisma.organization.findFirst({
+      include: {
+        history: {
+          orderBy: [{ year: 'asc' }, { sortOrder: 'asc' }],
+        },
+        milestones: {
+          orderBy: [{ year: 'asc' }, { sortOrder: 'asc' }],
+        },
+        leaders: {
+          orderBy: { sortOrder: 'asc' },
+        },
+        departments: {
+          orderBy: { sortOrder: 'asc' },
+        },
+        units: {
+          orderBy: [{ level: 'asc' }, { sortOrder: 'asc' }],
+        },
+        partners: {
+          orderBy: { sortOrder: 'asc' },
+        },
+        sections: {
+          orderBy: { sortOrder: 'asc' },
+        },
+      },
+    });
+
+    return res.json({
+      success: true,
+      organization,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const createOrganization = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const existingOrganization = await prisma.organization.findFirst();
+
+    if (existingOrganization) {
+      return res.status(409).json({
+        success: false,
+        message: 'An organization profile already exists.',
+      });
+    }
+
+    const {
+      name,
+      tagline,
+      description,
+      vision,
+      mission,
+      valuesJson,
+      logoUrl,
+      websiteUrl,
+      email,
+      phone,
+      address,
+      isPublished,
+    } = req.body;
+
+    if (!name || !description) {
+      return res.status(400).json({
+        success: false,
+        message: 'Organization name and description are required.',
+      });
+    }
+
+    const organization = await prisma.organization.create({
+      data: {
+        name,
+        tagline: tagline || null,
+        description,
+        vision: vision || null,
+        mission: mission || null,
+        valuesJson: Array.isArray(valuesJson) ? valuesJson : [],
+        logoUrl: logoUrl || null,
+        websiteUrl: websiteUrl || null,
+        email: email || null,
+        phone: phone || null,
+        address: address || null,
+        isPublished:
+          typeof isPublished === 'boolean' ? isPublished : true,
+      },
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: 'Organization profile created successfully.',
+      organization,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updateOrganization = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { organizationId } = req.params;
+
+    const existingOrganization = await prisma.organization.findUnique({
+      where: {
+        id: organizationId,
+      },
+    });
+
+    if (!existingOrganization) {
+      return res.status(404).json({
+        success: false,
+        message: 'Organization profile not found.',
+      });
+    }
+
+    const {
+      name,
+      tagline,
+      description,
+      vision,
+      mission,
+      valuesJson,
+      logoUrl,
+      websiteUrl,
+      email,
+      phone,
+      address,
+      isPublished,
+    } = req.body;
+
+    const organization = await prisma.organization.update({
+      where: {
+        id: organizationId,
+      },
+      data: {
+        ...(name !== undefined && { name }),
+        ...(tagline !== undefined && { tagline }),
+        ...(description !== undefined && { description }),
+        ...(vision !== undefined && { vision }),
+        ...(mission !== undefined && { mission }),
+        ...(valuesJson !== undefined && {
+          valuesJson: Array.isArray(valuesJson) ? valuesJson : [],
+        }),
+        ...(logoUrl !== undefined && { logoUrl }),
+        ...(websiteUrl !== undefined && { websiteUrl }),
+        ...(email !== undefined && { email }),
+        ...(phone !== undefined && { phone }),
+        ...(address !== undefined && { address }),
+        ...(isPublished !== undefined && { isPublished }),
+      },
+    });
+
+    return res.json({
+      success: true,
+      message: 'Organization profile updated successfully.',
+      organization,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteOrganization = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { organizationId } = req.params;
+
+    const existingOrganization = await prisma.organization.findUnique({
+      where: {
+        id: organizationId,
+      },
+    });
+
+    if (!existingOrganization) {
+      return res.status(404).json({
+        success: false,
+        message: 'Organization profile not found.',
+      });
+    }
+
+    await prisma.organization.delete({
+      where: {
+        id: organizationId,
+      },
+    });
+
+    return res.json({
+      success: true,
+      message: 'Organization profile deleted successfully.',
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const publishOrganization = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { organizationId } = req.params;
+
+    const organization = await prisma.organization.update({
+      where: {
+        id: organizationId,
+      },
+      data: {
+        isPublished: true,
+      },
+    });
+
+    return res.json({
+      success: true,
+      message: 'Organization profile published successfully.',
+      organization,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const unpublishOrganization = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { organizationId } = req.params;
+
+    const organization = await prisma.organization.update({
+      where: {
+        id: organizationId,
+      },
+      data: {
+        isPublished: false,
+      },
+    });
+
+    return res.json({
+      success: true,
+      message: 'Organization profile unpublished successfully.',
+      organization,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+

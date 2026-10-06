@@ -1,0 +1,316 @@
+import React, { useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
+import { Breadcrumbs } from '../components/ui/Breadcrumbs';
+import {
+  LayoutDashboard,
+  User as UserIcon,
+  FolderGit2,
+  GraduationCap,
+  Cpu,
+  BookOpen,
+  MessageSquare,
+  Bell,
+  Settings,
+  Shield,
+  LogOut,
+  Search,
+  Sun,
+  Moon,
+  Menu,
+  X,
+  Award,
+  BookMarked,
+  Code2
+} from 'lucide-react';
+import Avatar from '../components/ui/Avatar';
+import { getDashboardRoleConfig } from '../config/dashboardRoles';
+
+export const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+
+  // Automatically close the mobile sidebar after navigation.
+  React.useEffect(() => {
+    setMobileSidebarOpen(false);
+  }, [location.pathname]);
+
+  const dashboardConfig = getDashboardRoleConfig(user?.role);
+  const navItems = dashboardConfig.navItems;
+
+  return (
+    <div className="flex min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] font-sans">
+      {/* Sidebar for Desktop */}
+      <aside className="hidden lg:flex w-64 bg-slate-950 border-r border-slate-800 p-4 flex-col justify-between shrink-0 glass-panel">
+        <div className="space-y-6">
+          <Link to="/" className="flex items-center gap-3 px-2 py-1 group">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-brand-600 to-cyber-accent p-0.5 shadow-lg">
+              <div className="w-full h-full bg-slate-950 rounded-[10px] flex items-center justify-center">
+                <Cpu className="w-5 h-5 text-brand-400" />
+              </div>
+            </div>
+            <div>
+              <span className="text-base font-black tracking-wider text-white font-mono">CADELIBORA</span>
+              <span className="block text-[9px] font-mono text-cyber-accent uppercase">User Portal</span>
+            </div>
+          </Link>
+
+          <nav className="space-y-1 font-mono text-xs">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = location.pathname === item.path;
+              return (
+                <Link
+                  key={`${item.label}-${item.path}`}
+                  to={item.path}
+                  className={`flex items-center gap-3 px-3.5 py-3 rounded-xl transition-all ${
+                    isActive
+                      ? 'bg-brand-600 text-white font-bold shadow-lg shadow-brand-500/20 border border-brand-500/50'
+                      : 'text-slate-400 hover:text-slate-100 hover:bg-slate-900 border border-transparent'
+                  }`}
+                >
+                  <Icon className="w-4 h-4 text-brand-400" />
+                  <span>{item.label}</span>
+                </Link>
+              );
+            })}
+          </nav>
+        </div>
+
+        {/* User Footer in Sidebar */}
+        <div className="pt-4 border-t border-slate-800 space-y-3 font-mono text-xs">
+          <div className="flex items-center gap-3 px-2">
+            <Avatar
+              name={user?.fullName}
+              src={user?.avatarUrl}
+              className="w-9 h-9 rounded-xl border border-brand-500/40"
+            />
+            <div className="overflow-hidden">
+              <p className="font-bold text-white truncate">{user?.fullName}</p>
+              <p className="text-[10px] text-brand-400 font-bold uppercase">{user?.role || 'USER'}</p>
+            </div>
+          </div>
+
+          {(user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN') && (
+            <Link
+              to={user?.role === 'SUPER_ADMIN' ? '/super-admin' : '/admin'}
+              className="w-full p-2 bg-cyber-accent/10 hover:bg-cyber-accent/20 text-cyber-accent rounded-xl font-bold flex items-center justify-center gap-2 transition-all border border-cyber-accent/30"
+            >
+              <Shield className="w-4 h-4" />
+              <span>{user?.role === 'SUPER_ADMIN' ? 'Super Admin Console' : 'Admin Workspace'}</span>
+            </Link>
+          )}
+
+          <button
+            onClick={() => {
+              logout();
+              navigate('/');
+            }}
+            className="w-full p-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-xl font-bold flex items-center justify-center gap-2 transition-all border border-rose-500/30"
+          >
+            <LogOut className="w-4 h-4" />
+            <span>Sign Out</span>
+          </button>
+        </div>
+      </aside>
+
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Topbar */}
+        <header className="h-20 border-b border-[var(--border-color)] bg-[var(--bg-primary)]/90 backdrop-blur-xl px-6 flex items-center justify-between sticky top-0 z-30">
+          <div className="flex items-center gap-4">
+            <button
+              type="button"
+              onClick={() => setMobileSidebarOpen((prev) => !prev)}
+              className="lg:hidden relative z-[60] p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-brand-400 transition-all shadow-lg"
+              aria-label={mobileSidebarOpen ? "Close dashboard navigation" : "Open dashboard navigation"}
+              aria-expanded={mobileSidebarOpen}
+            >
+              {mobileSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </button>
+            <div>
+              <span className="text-xs font-mono text-brand-400 font-bold uppercase">{dashboardConfig.label}</span>
+              <h2 className="text-lg font-bold text-white">Welcome back, {user?.fullName || 'Fellow'}</h2>
+              <p className="text-[11px] text-slate-400 max-w-xl">{dashboardConfig.description}</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={toggleTheme}
+              className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-brand-400 transition-all"
+            >
+              {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            </button>
+
+            <div className="relative">
+              <button
+                onClick={() => setNotificationsOpen(!notificationsOpen)}
+                className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-brand-400 relative transition-all"
+              >
+                <Bell className="w-5 h-5" />
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-brand-500 animate-pulse"></span>
+              </button>
+
+              {notificationsOpen && (
+                <div className="absolute right-0 mt-2 w-80 rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl p-4 z-50 glass-panel">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-800 mb-3">
+                    <span className="text-xs font-bold text-white font-mono">Notifications</span>
+                    <span className="text-[10px] text-brand-400 font-mono">3 New</span>
+                  </div>
+                  <div className="space-y-2.5 text-xs">
+                    <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800">
+                      <p className="font-semibold text-slate-200">New Academy Course Available</p>
+                      <p className="text-slate-400 text-[11px] mt-0.5">Advanced Neural Networks & AI Agents is now live.</p>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800">
+                      <p className="font-semibold text-slate-200">Research Publication Accepted</p>
+                      <p className="text-slate-400 text-[11px] mt-0.5">Your paper on Quantum Cryptography passed peer review.</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </header>
+
+        {/* Viewport Content */}
+        <main className="flex-1 p-8 space-y-6 max-w-7xl">
+          <Breadcrumbs />
+          {children}
+        </main>
+      </div>
+
+      {/* Mobile Sidebar */}
+      <div
+        className={`lg:hidden fixed inset-0 z-50 transition-all duration-300 ${
+          mobileSidebarOpen
+            ? 'pointer-events-auto'
+            : 'pointer-events-none'
+        }`}
+        aria-hidden={!mobileSidebarOpen}
+      >
+        {/* Backdrop */}
+        <div
+          className={`absolute inset-0 bg-black/70 backdrop-blur-sm transition-opacity duration-300 ${
+            mobileSidebarOpen ? 'opacity-100' : 'opacity-0'
+          }`}
+          onClick={() => setMobileSidebarOpen(false)}
+        />
+
+        {/* Sidebar */}
+        <aside
+          className={`relative w-72 max-w-[85vw] h-full bg-slate-950 border-r border-slate-800 p-5 flex flex-col justify-between shadow-2xl transition-transform duration-300 ease-out ${
+            mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+          }`}
+        >
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <Link
+                to="/"
+                onClick={() => setMobileSidebarOpen(false)}
+                className="flex items-center gap-3"
+              >
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-brand-600 to-cyber-accent p-0.5 shadow-lg">
+                  <div className="w-full h-full bg-slate-950 rounded-[10px] flex items-center justify-center">
+                    <Cpu className="w-5 h-5 text-brand-400" />
+                  </div>
+                </div>
+
+                <div>
+                  <span className="text-sm font-black tracking-wider text-white font-mono">
+                    CADELIBORA
+                  </span>
+                  <span className="block text-[9px] font-mono text-cyber-accent uppercase">
+                    User Portal
+                  </span>
+                </div>
+              </Link>
+
+              <button
+                type="button"
+                onClick={() => setMobileSidebarOpen(false)}
+                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-900 transition-all"
+                aria-label="Close dashboard navigation"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <nav className="space-y-1.5 font-mono text-xs">
+              {navItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = location.pathname === item.path;
+
+                return (
+                  <Link
+                    key={`${item.label}-${item.path}`}
+                    to={item.path}
+                    onClick={() => setMobileSidebarOpen(false)}
+                    className={`flex items-center gap-3 px-3.5 py-3 rounded-xl transition-all ${
+                      isActive
+                        ? 'bg-brand-600 text-white font-bold shadow-lg shadow-brand-500/20 border border-brand-500/50'
+                        : 'text-slate-400 hover:text-slate-100 hover:bg-slate-900 border border-transparent'
+                    }`}
+                  >
+                    <Icon className="w-4 h-4 text-brand-400 shrink-0" />
+                    <span>{item.label}</span>
+                  </Link>
+                );
+              })}
+            </nav>
+          </div>
+
+          {/* Mobile User Footer */}
+          <div className="pt-4 border-t border-slate-800 space-y-3 font-mono text-xs">
+            <div className="flex items-center gap-3 px-2">
+              <Avatar
+                name={user?.fullName}
+                src={user?.avatarUrl}
+                className="w-9 h-9 rounded-xl border border-brand-500/40"
+              />
+
+              <div className="overflow-hidden">
+                <p className="font-bold text-white truncate">
+                  {user?.fullName}
+                </p>
+                <p className="text-[10px] text-brand-400 font-bold uppercase">
+                  {user?.role || 'USER'}
+                </p>
+              </div>
+            </div>
+
+            {(user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN') && (
+              <Link
+                to={user?.role === 'SUPER_ADMIN' ? '/super-admin' : '/admin'}
+                onClick={() => setMobileSidebarOpen(false)}
+                className="w-full p-2 bg-cyber-accent/10 hover:bg-cyber-accent/20 text-cyber-accent rounded-xl font-bold flex items-center justify-center gap-2 transition-all border border-cyber-accent/30"
+              >
+                <Shield className="w-4 h-4" />
+                <span>{user?.role === 'SUPER_ADMIN' ? 'Super Admin Console' : 'Admin Workspace'}</span>
+              </Link>
+            )}
+
+            <button
+              type="button"
+              onClick={() => {
+                setMobileSidebarOpen(false);
+                logout();
+                navigate('/');
+              }}
+              className="w-full p-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-xl font-bold flex items-center justify-center gap-2 transition-all border border-rose-500/30"
+            >
+              <LogOut className="w-4 h-4" />
+              <span>Sign Out</span>
+            </button>
+          </div>
+        </aside>
+      </div>
+    </div>
+  );
+};

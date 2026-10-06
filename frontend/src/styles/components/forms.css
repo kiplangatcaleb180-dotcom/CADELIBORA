@@ -1,0 +1,12 @@
+.cadelibora-input {
+  background: rgba(2, 6, 23, 0.8);
+  border: 1px solid var(--cadelibora-border);
+  border-radius: 0.75rem;
+  padding: 0.75rem 1rem;
+  color: #ffffff;
+}
+
+.cadelibora-input:focus {
+  outline: none;
+  border-color: var(--cadelibora-brand-500);
+}

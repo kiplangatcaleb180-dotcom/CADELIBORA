@@ -1,0 +1,827 @@
+import React, { useEffect, useState } from 'react';
+import { fetchApi } from '../../lib/api';
+import { DataTable, Column } from '../../components/admin/DataTable';
+import {
+  Box,
+  Code2,
+  Plus,
+  Pencil,
+  Trash2,
+  X,
+  Save,
+  ExternalLink,
+} from 'lucide-react';
+
+type Tab = 'projects' | 'products';
+
+interface Project {
+  id: string;
+  title: string;
+  slug: string;
+  description: string;
+  category: string;
+  status: string;
+  techStackJson: any;
+  repoUrl?: string | null;
+  liveUrl?: string | null;
+  featured: boolean;
+}
+
+interface Product {
+  id: string;
+  title: string;
+  slug: string;
+  tagline: string;
+  description: string;
+  category: string;
+  version: string;
+  status: string;
+  demoUrl?: string | null;
+  docsUrl?: string | null;
+  currency: string;
+  price: number;
+}
+
+const emptyProject = {
+  title: '',
+  description: '',
+  category: 'Open Source',
+  status: 'Active',
+  techStack: '',
+  repoUrl: '',
+  liveUrl: '',
+  featured: false,
+};
+
+const emptyProduct = {
+  title: '',
+  tagline: '',
+  description: '',
+  category: '',
+  version: '1.0.0',
+  status: 'GA',
+  demoUrl: '',
+  docsUrl: '',
+  currency: 'USD',
+  price: 0,
+};
+
+export const AdminProjectsProductsView: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<Tab>('projects');
+
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  const [showModal, setShowModal] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  const [projectForm, setProjectForm] = useState(emptyProject);
+  const [productForm, setProductForm] = useState(emptyProduct);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+
+      const res = await fetchApi<{
+        projects: Project[];
+        products: Product[];
+      }>('/projects');
+
+      setProjects(res.projects || []);
+      setProducts(res.products || []);
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || 'Failed to load projects and products');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const closeModal = () => {
+    setShowModal(false);
+    setEditingId(null);
+    setProjectForm(emptyProject);
+    setProductForm(emptyProduct);
+  };
+
+  const openCreateProject = () => {
+    setActiveTab('projects');
+    setEditingId(null);
+    setProjectForm(emptyProject);
+    setShowModal(true);
+  };
+
+  const openEditProject = (project: Project) => {
+    let techStack: string[] = [];
+
+    try {
+      if (Array.isArray(project.techStackJson)) {
+        techStack = project.techStackJson;
+      } else if (typeof project.techStackJson === 'string') {
+        techStack = JSON.parse(project.techStackJson || '[]');
+      }
+    } catch {
+      techStack = [];
+    }
+
+    setActiveTab('projects');
+    setEditingId(project.id);
+    setProjectForm({
+      title: project.title || '',
+      description: project.description || '',
+      category: project.category || 'Open Source',
+      status: project.status || 'Active',
+      techStack: techStack.join(', '),
+      repoUrl: project.repoUrl || '',
+      liveUrl: project.liveUrl || '',
+      featured: Boolean(project.featured),
+    });
+    setShowModal(true);
+  };
+
+  const openCreateProduct = () => {
+    setActiveTab('products');
+    setEditingId(null);
+    setProductForm(emptyProduct);
+    setShowModal(true);
+  };
+
+  const openEditProduct = (product: Product) => {
+    setActiveTab('products');
+    setEditingId(product.id);
+    setProductForm({
+      title: product.title || '',
+      tagline: product.tagline || '',
+      description: product.description || '',
+      category: product.category || '',
+      version: product.version || '1.0.0',
+      status: product.status || 'GA',
+      demoUrl: product.demoUrl || '',
+      docsUrl: product.docsUrl || '',
+      currency: product.currency || 'USD',
+      price: Number(product.price || 0),
+    });
+    setShowModal(true);
+  };
+
+  const saveProject = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    try {
+      setSaving(true);
+
+      const payload = {
+        title: projectForm.title,
+        description: projectForm.description,
+        category: projectForm.category,
+        status: projectForm.status,
+        techStack: projectForm.techStack
+          .split(',')
+          .map((item) => item.trim())
+          .filter(Boolean),
+        repoUrl: projectForm.repoUrl || null,
+        liveUrl: projectForm.liveUrl || null,
+        featured: projectForm.featured,
+      };
+
+      if (editingId) {
+        await fetchApi(`/projects/${editingId}`, {
+          method: 'PUT',
+          body: JSON.stringify(payload),
+        });
+      } else {
+        await fetchApi('/projects', {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        });
+      }
+
+      closeModal();
+      await loadData();
+    } catch (err: any) {
+      alert(err.message || 'Failed to save project');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const saveProduct = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    try {
+      setSaving(true);
+
+      const payload = {
+        title: productForm.title,
+        tagline: productForm.tagline,
+        description: productForm.description,
+        category: productForm.category,
+        version: productForm.version,
+        status: productForm.status,
+        demoUrl: productForm.demoUrl || null,
+        docsUrl: productForm.docsUrl || null,
+        currency: productForm.currency,
+        price: Number(productForm.price),
+      };
+
+      if (editingId) {
+        await fetchApi(`/projects/products/${editingId}`, {
+          method: 'PUT',
+          body: JSON.stringify(payload),
+        });
+      } else {
+        await fetchApi('/projects/products', {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        });
+      }
+
+      closeModal();
+      await loadData();
+    } catch (err: any) {
+      alert(err.message || 'Failed to save product');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deleteProject = async (id: string) => {
+    if (!confirm('Delete this project? This action cannot be undone.')) return;
+
+    try {
+      await fetchApi(`/projects/${id}`, {
+        method: 'DELETE',
+      });
+
+      await loadData();
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete project');
+    }
+  };
+
+  const deleteProduct = async (id: string) => {
+    if (!confirm('Delete this product? This action cannot be undone.')) return;
+
+    try {
+      await fetchApi(`/projects/products/${id}`, {
+        method: 'DELETE',
+      });
+
+      await loadData();
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete product');
+    }
+  };
+
+  const projectCols: Column<Project>[] = [
+    {
+      key: 'title',
+      header: 'Project',
+      render: (project) => (
+        <div>
+          <div className="font-bold text-white">{project.title}</div>
+          <div className="text-[10px] text-slate-500 font-mono">
+            {project.slug}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'category',
+      header: 'Category',
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (project) => (
+        <span className="text-brand-400 font-mono text-xs">
+          {project.status}
+        </span>
+      ),
+    },
+    {
+      key: 'featured',
+      header: 'Featured',
+      render: (project) => (
+        <span
+          className={
+            project.featured
+              ? 'text-emerald-400'
+              : 'text-slate-500'
+          }
+        >
+          {project.featured ? 'Yes' : 'No'}
+        </span>
+      ),
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      sortable: false,
+      render: (project) => (
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => openEditProject(project)}
+            className="p-1.5 bg-brand-500/10 text-brand-400 hover:bg-brand-500/20 rounded-lg"
+            title="Edit project"
+          >
+            <Pencil className="w-4 h-4" />
+          </button>
+
+          <button
+            onClick={() => deleteProject(project.id)}
+            className="p-1.5 bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 rounded-lg"
+            title="Delete project"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+
+          {project.repoUrl && (
+            <a
+              href={project.repoUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="p-1.5 bg-slate-800 text-slate-300 hover:bg-slate-700 rounded-lg"
+              title="Open repository"
+            >
+              <ExternalLink className="w-4 h-4" />
+            </a>
+          )}
+        </div>
+      ),
+    },
+  ];
+
+  const productCols: Column<Product>[] = [
+    {
+      key: 'title',
+      header: 'Product',
+      render: (product) => (
+        <div>
+          <div className="font-bold text-white">{product.title}</div>
+          <div className="text-[10px] text-slate-500 font-mono">
+            {product.slug}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'category',
+      header: 'Category',
+    },
+    {
+      key: 'version',
+      header: 'Version',
+      render: (product) => (
+        <span className="text-emerald-400 font-bold">
+          v{product.version}
+        </span>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+    },
+    {
+      key: 'price',
+      header: 'Price',
+      render: (product) => (
+        <span className="font-mono text-xs text-slate-300">
+          {product.currency} {Number(product.price || 0).toFixed(2)}
+        </span>
+      ),
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      sortable: false,
+      render: (product) => (
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => openEditProduct(product)}
+            className="p-1.5 bg-brand-500/10 text-brand-400 hover:bg-brand-500/20 rounded-lg"
+            title="Edit product"
+          >
+            <Pencil className="w-4 h-4" />
+          </button>
+
+          <button
+            onClick={() => deleteProduct(product.id)}
+            className="p-1.5 bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 rounded-lg"
+            title="Delete product"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
+      ),
+    },
+  ];
+
+  if (loading) {
+    return (
+      <div className="p-12 text-center font-mono text-brand-400 animate-pulse">
+        Loading Projects & Products...
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-8">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-bold font-mono text-white flex items-center gap-2">
+            <Box className="w-5 h-5 text-brand-400" />
+            <span>Enterprise Projects & Products</span>
+          </h2>
+
+          <p className="text-xs text-slate-500 mt-1 font-mono">
+            Manage CADELIBORA engineering projects and enterprise products.
+          </p>
+        </div>
+
+        <button
+          onClick={activeTab === 'projects' ? openCreateProject : openCreateProduct}
+          className="px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white font-bold font-mono text-xs rounded-xl flex items-center gap-2"
+        >
+          <Plus className="w-4 h-4" />
+          <span>
+            Add {activeTab === 'projects' ? 'Project' : 'Product'}
+          </span>
+        </button>
+      </div>
+
+      <div className="flex gap-2 border-b border-slate-800">
+        <button
+          onClick={() => setActiveTab('projects')}
+          className={`px-4 py-3 text-xs font-mono font-bold ${
+            activeTab === 'projects'
+              ? 'text-brand-400 border-b-2 border-brand-400'
+              : 'text-slate-500 hover:text-slate-300'
+          }`}
+        >
+          <span className="inline-flex items-center gap-2">
+            <Code2 className="w-4 h-4" />
+            Projects ({projects.length})
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('products')}
+          className={`px-4 py-3 text-xs font-mono font-bold ${
+            activeTab === 'products'
+              ? 'text-brand-400 border-b-2 border-brand-400'
+              : 'text-slate-500 hover:text-slate-300'
+          }`}
+        >
+          <span className="inline-flex items-center gap-2">
+            <Box className="w-4 h-4" />
+            Products ({products.length})
+          </span>
+        </button>
+      </div>
+
+      {activeTab === 'projects' ? (
+        <DataTable
+          title="Projects"
+          data={projects}
+          columns={projectCols}
+          searchKey="title"
+        />
+      ) : (
+        <DataTable
+          title="Products"
+          data={products}
+          columns={productCols}
+          searchKey="title"
+        />
+      )}
+
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 overflow-y-auto">
+          <div className="w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-5 font-mono text-xs my-8">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-white">
+                {editingId ? 'Edit' : 'Create'}{' '}
+                {activeTab === 'projects' ? 'Project' : 'Product'}
+              </h3>
+
+              <button
+                type="button"
+                onClick={closeModal}
+                className="p-2 text-slate-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {activeTab === 'projects' ? (
+              <form onSubmit={saveProject} className="space-y-4">
+                <input
+                  type="text"
+                  placeholder="Project Title"
+                  required
+                  value={projectForm.title}
+                  onChange={(e) =>
+                    setProjectForm({
+                      ...projectForm,
+                      title: e.target.value,
+                    })
+                  }
+                  className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl text-white"
+                />
+
+                <textarea
+                  placeholder="Project Description"
+                  required
+                  value={projectForm.description}
+                  onChange={(e) =>
+                    setProjectForm({
+                      ...projectForm,
+                      description: e.target.value,
+                    })
+                  }
+                  className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl text-white min-h-28"
+                />
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <input
+                    type="text"
+                    placeholder="Category"
+                    value={projectForm.category}
+                    onChange={(e) =>
+                      setProjectForm({
+                        ...projectForm,
+                        category: e.target.value,
+                      })
+                    }
+                    className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl text-white"
+                  />
+
+                  <input
+                    type="text"
+                    placeholder="Status"
+                    value={projectForm.status}
+                    onChange={(e) =>
+                      setProjectForm({
+                        ...projectForm,
+                        status: e.target.value,
+                      })
+                    }
+                    className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl text-white"
+                  />
+                </div>
+
+                <input
+                  type="text"
+                  placeholder="Technology Stack — React, Node.js, PostgreSQL"
+                  value={projectForm.techStack}
+                  onChange={(e) =>
+                    setProjectForm({
+                      ...projectForm,
+                      techStack: e.target.value,
+                    })
+                  }
+                  className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl text-white"
+                />
+
+                <input
+                  type="url"
+                  placeholder="Repository URL"
+                  value={projectForm.repoUrl}
+                  onChange={(e) =>
+                    setProjectForm({
+                      ...projectForm,
+                      repoUrl: e.target.value,
+                    })
+                  }
+                  className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl text-white"
+                />
+
+                <input
+                  type="url"
+                  placeholder="Live URL"
+                  value={projectForm.liveUrl}
+                  onChange={(e) =>
+                    setProjectForm({
+                      ...projectForm,
+                      liveUrl: e.target.value,
+                    })
+                  }
+                  className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl text-white"
+                />
+
+                <label className="flex items-center gap-2 text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={projectForm.featured}
+                    onChange={(e) =>
+                      setProjectForm({
+                        ...projectForm,
+                        featured: e.target.checked,
+                      })
+                    }
+                  />
+                  Featured project
+                </label>
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="flex-1 p-3 bg-brand-600 hover:bg-brand-500 disabled:opacity-50 font-bold rounded-xl text-white flex items-center justify-center gap-2"
+                  >
+                    <Save className="w-4 h-4" />
+                    {saving
+                      ? 'Saving...'
+                      : editingId
+                        ? 'Update Project'
+                        : 'Create Project'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={closeModal}
+                    className="px-5 p-3 bg-slate-800 hover:bg-slate-700 font-bold rounded-xl text-slate-300"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <form onSubmit={saveProduct} className="space-y-4">
+                <input
+                  type="text"
+                  placeholder="Product Title"
+                  required
+                  value={productForm.title}
+                  onChange={(e) =>
+                    setProductForm({
+                      ...productForm,
+                      title: e.target.value,
+                    })
+                  }
+                  className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl text-white"
+                />
+
+                <input
+                  type="text"
+                  placeholder="Tagline"
+                  required
+                  value={productForm.tagline}
+                  onChange={(e) =>
+                    setProductForm({
+                      ...productForm,
+                      tagline: e.target.value,
+                    })
+                  }
+                  className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl text-white"
+                />
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <input
+                    type="text"
+                    placeholder="Category"
+                    required
+                    value={productForm.category}
+                    onChange={(e) =>
+                      setProductForm({
+                        ...productForm,
+                        category: e.target.value,
+                      })
+                    }
+                    className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl text-white"
+                  />
+
+                  <input
+                    type="text"
+                    placeholder="Version"
+                    value={productForm.version}
+                    onChange={(e) =>
+                      setProductForm({
+                        ...productForm,
+                        version: e.target.value,
+                      })
+                    }
+                    className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl text-white"
+                  />
+                </div>
+
+                <textarea
+                  placeholder="Product Description"
+                  required
+                  value={productForm.description}
+                  onChange={(e) =>
+                    setProductForm({
+                      ...productForm,
+                      description: e.target.value,
+                    })
+                  }
+                  className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl text-white min-h-28"
+                />
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <input
+                    type="text"
+                    placeholder="Status (GA, Beta, etc.)"
+                    value={productForm.status}
+                    onChange={(e) =>
+                      setProductForm({
+                        ...productForm,
+                        status: e.target.value,
+                      })
+                    }
+                    className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl text-white"
+                  />
+
+                  <input
+                    type="text"
+                    placeholder="Currency (USD, KES)"
+                    value={productForm.currency}
+                    onChange={(e) =>
+                      setProductForm({
+                        ...productForm,
+                        currency: e.target.value,
+                      })
+                    }
+                    className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl text-white"
+                  />
+                </div>
+
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="Price"
+                  value={productForm.price}
+                  onChange={(e) =>
+                    setProductForm({
+                      ...productForm,
+                      price: Number(e.target.value),
+                    })
+                  }
+                  className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl text-white"
+                />
+
+                <input
+                  type="url"
+                  placeholder="Demo URL"
+                  value={productForm.demoUrl}
+                  onChange={(e) =>
+                    setProductForm({
+                      ...productForm,
+                      demoUrl: e.target.value,
+                    })
+                  }
+                  className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl text-white"
+                />
+
+                <input
+                  type="url"
+                  placeholder="Documentation URL"
+                  value={productForm.docsUrl}
+                  onChange={(e) =>
+                    setProductForm({
+                      ...productForm,
+                      docsUrl: e.target.value,
+                    })
+                  }
+                  className="w-full p-3 bg-slate-950 border border-slate-800 rounded-xl text-white"
+                />
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="flex-1 p-3 bg-brand-600 hover:bg-brand-500 disabled:opacity-50 font-bold rounded-xl text-white flex items-center justify-center gap-2"
+                  >
+                    <Save className="w-4 h-4" />
+                    {saving
+                      ? 'Saving...'
+                      : editingId
+                        ? 'Update Product'
+                        : 'Create Product'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={closeModal}
+                    className="px-5 p-3 bg-slate-800 hover:bg-slate-700 font-bold rounded-xl text-slate-300"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};

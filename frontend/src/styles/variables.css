@@ -1,0 +1,151 @@
+:root {
+  /* CADELIBORA dark theme */
+  --cadelibora-bg-dark: #070a12;
+  --cadelibora-panel-bg: rgba(15, 23, 42, 0.75);
+  --cadelibora-brand-500: #0284c7;
+  --cadelibora-brand-600: #0369a1;
+  --cadelibora-cyber-accent: #06b6d4;
+  --cadelibora-cyber-neon: #10b981;
+  --cadelibora-border: rgba(51, 65, 85, 0.8);
+  --cadelibora-text-main: #f8fafc;
+  --cadelibora-text-muted: #94a3b8;
+
+  /* General theme variables */
+  --bg-primary: #090d16;
+  --bg-secondary: #0f172a;
+  --bg-card: #0f172a;
+  --bg-input: #020617;
+  --border-color: #1e293b;
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+  --accent-blue: #3b82f6;
+  --accent-cyan: #06b6d4;
+  --accent-emerald: #10b981;
+  --shadow-color: rgba(0, 0, 0, 0.3);
+}
+
+.light {
+  /* CADELIBORA light theme */
+  --cadelibora-bg-dark: #ffffff;
+  --cadelibora-panel-bg: rgba(255, 255, 255, 0.95);
+  --cadelibora-brand-500: #2563eb;
+  --cadelibora-brand-600: #1d4ed8;
+  --cadelibora-cyber-accent: #0284c7;
+  --cadelibora-cyber-neon: #059669;
+  --cadelibora-border: rgba(203, 213, 225, 0.9);
+  --cadelibora-text-main: #0f172a;
+  --cadelibora-text-muted: #64748b;
+
+  /* General theme variables */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8fafc;
+  --bg-card: #ffffff;
+  --bg-input: #ffffff;
+  --border-color: #e2e8f0;
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --text-muted: #64748b;
+  --accent-blue: #2563eb;
+  --accent-cyan: #0284c7;
+  --accent-emerald: #059669;
+  --shadow-color: rgba(15, 23, 42, 0.08);
+}
+
+/* =========================================================
+   THEME-AWARE SLATE PALETTE & OVERRIDES FOR LIGHT/DARK MODE
+   ========================================================= */
+
+:root {
+  --slate-50: #f8fafc;
+  --slate-100: #f1f5f9;
+  --slate-200: #e2e8f0;
+  --slate-300: #cbd5e1;
+  --slate-400: #94a3b8;
+  --slate-500: #64748b;
+  --slate-600: #475569;
+  --slate-700: #334155;
+  --slate-800: #1e293b;
+  --slate-900: #0f172a;
+  --slate-950: #020617;
+}
+
+.light {
+  --slate-50: #0f172a;
+  --slate-100: #1e293b;
+  --slate-200: #334155;
+  --slate-300: #475569;
+  --slate-400: #64748b;
+  --slate-500: #64748b;
+  --slate-600: #475569;
+  --slate-700: #cbd5e1;
+  --slate-800: #e2e8f0;
+  --slate-900: #f1f5f9;
+  --slate-950: #ffffff;
+}
+
+/* Global Light Mode Inversions for Hardcoded Dark Classes */
+.light .bg-slate-950,
+.light [class*="bg-slate-950"],
+.light .bg-\[\#070a12\],
+.light .bg-\[\#090d16\] {
+  background-color: #ffffff !important;
+}
+
+.light .bg-slate-900,
+.light [class*="bg-slate-900"] {
+  background-color: #f8fafc !important;
+}
+
+.light .text-white,
+.light [class*="text-white"] {
+  color: #0f172a !important;
+}
+
+.light .text-slate-100,
+.light [class*="text-slate-100"] {
+  color: #1e293b !important;
+}
+
+.light .text-slate-200,
+.light [class*="text-slate-200"] {
+  color: #334155 !important;
+}
+
+.light .text-slate-300,
+.light [class*="text-slate-300"] {
+  color: #475569 !important;
+}
+
+.light .text-slate-400,
+.light [class*="text-slate-400"] {
+  color: #64748b !important;
+}
+
+.light .border-slate-800,
+.light [class*="border-slate-800"],
+.light .border-slate-700,
+.light [class*="border-slate-700"] {
+  border-color: #e2e8f0 !important;
+}
+
+/* Global Dark Mode Inversions for Hardcoded Light Classes (e.g. Admin Organization Structure) */
+.dark .bg-white,
+.dark [class*="bg-white"] {
+  background-color: var(--bg-card) !important;
+  color: var(--text-primary) !important;
+}
+
+.dark .text-slate-900,
+.dark [class*="text-slate-900"],
+.dark .text-slate-800,
+.dark [class*="text-slate-800"] {
+  color: var(--text-primary) !important;
+}
+
+.dark .border-slate-300,
+.dark [class*="border-slate-300"],
+.dark .border-slate-200,
+.dark [class*="border-slate-200"] {
+  border-color: var(--border-color) !important;
+}

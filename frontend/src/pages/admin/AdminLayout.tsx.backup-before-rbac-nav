@@ -1,0 +1,255 @@
+import React, { useState, useEffect } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
+import { fetchApi } from '../../lib/api';
+import {
+  Shield,
+  LayoutDashboard,
+  Users,
+  Box,
+  Cpu,
+  GraduationCap,
+  BookOpen,
+  MessageSquare,
+  BarChart2,
+  Lock,
+  Activity,
+  LogOut,
+  Bell,
+  Terminal,
+  Layers,
+  Settings,
+  Database,
+  CheckCircle2,
+  Lightbulb,
+  FileText,
+  Menu,
+  X,
+} from 'lucide-react';
+
+export const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user, logout } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [systemStatus, setSystemStatus] = useState<'HEALTHY' | 'DEGRADED'>('DEGRADED');
+  const [apiOnline, setApiOnline] = useState(false);
+  const [databaseOnline, setDatabaseOnline] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const checkSystemHealth = async () => {
+      try {
+        const health = await fetchApi<{ status: string; services?: { api?: string; database?: string } }>('/../health');
+
+        if (!mounted) return;
+
+        const online = health.services?.api === 'ONLINE';
+        const dbOnline = health.services?.database === 'ONLINE';
+
+        setApiOnline(online);
+        setDatabaseOnline(dbOnline);
+        setSystemStatus(online && dbOnline ? 'HEALTHY' : 'DEGRADED');
+      } catch {
+        if (!mounted) return;
+
+        setApiOnline(false);
+        setDatabaseOnline(false);
+        setSystemStatus('DEGRADED');
+      }
+    };
+
+    checkSystemHealth();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const adminNav = [
+    { label: 'Overview Dashboard', path: '/admin/dashboard', icon: LayoutDashboard },
+    { label: 'Users & RBAC Roles', path: '/admin/users', icon: Users },
+    { label: 'Projects & Products', path: '/admin/projects', icon: Box },
+    { label: 'Research & Papers', path: '/admin/research', icon: Cpu },
+    { label: 'Innovation Center', path: '/admin/innovation', icon: Lightbulb },
+    { label: 'Academy & Certs', path: '/admin/academy', icon: GraduationCap },
+    { label: 'Organization', path: '/admin/organization', icon: Layers },
+    { label: 'Technology', path: '/admin/technology', icon: Cpu },
+    { label: 'Library & Newsroom', path: '/admin/library', icon: BookOpen },
+    { label: 'CMS / Content Management', path: '/admin/articles', icon: FileText },
+    { label: 'Community & Services', path: '/admin/community', icon: MessageSquare },
+    { label: 'Analytics & Settings', path: '/admin/analytics', icon: BarChart2 },
+    { label: 'Security & Audit Logs', path: '/admin/security', icon: Lock },
+  ];
+
+  return (
+    <div className="flex min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] font-sans">
+      {/* Enterprise Sidebar (Desktop) */}
+      <aside className="hidden lg:flex w-64 bg-slate-950 border-r border-slate-800 p-4 flex-col justify-between shrink-0 glass-panel">
+        <div className="space-y-6">
+          <div className="p-3 bg-slate-900/90 border border-slate-800 rounded-2xl space-y-2">
+            <div className="flex items-center gap-2">
+              <Shield className="w-5 h-5 text-cyber-accent" />
+              <span className="font-mono text-xs font-black tracking-widest text-white uppercase">COMMAND CENTER</span>
+            </div>
+            <div className="flex items-center justify-between font-mono text-[10px] text-slate-400">
+              <span>SYSTEM HEALTH:</span>
+              <span
+                className={`font-bold flex items-center gap-1 ${
+                  systemStatus === 'HEALTHY' ? 'text-emerald-400' : 'text-amber-400'
+                }`}
+              >
+                <span
+                  className={`w-1.5 h-1.5 rounded-full animate-ping ${
+                    systemStatus === 'HEALTHY' ? 'bg-emerald-400' : 'bg-amber-400'
+                  }`}
+                ></span>
+                {systemStatus}
+              </span>
+            </div>
+          </div>
+
+          <nav className="space-y-1 font-mono text-xs">
+            {adminNav.map((item) => {
+              const Icon = item.icon;
+              const isActive = location.pathname.startsWith(item.path) || (item.path === '/admin/dashboard' && location.pathname === '/admin');
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className={`flex items-center gap-3 px-3.5 py-3 rounded-xl transition-all ${
+                    isActive
+                      ? 'bg-brand-600 text-white font-bold shadow-lg shadow-brand-500/20 border border-brand-500/50'
+                      : 'text-slate-400 hover:text-slate-100 hover:bg-slate-900 border border-transparent'
+                  }`}
+                >
+                  <Icon className="w-4 h-4 text-brand-400" />
+                  <span>{item.label}</span>
+                </Link>
+              );
+            })}
+          </nav>
+        </div>
+
+        {/* User Info & Sign Out */}
+        <div className="pt-4 border-t border-slate-800 space-y-3 font-mono text-xs">
+          <div className="px-2">
+            <p className="font-bold text-white truncate">{user?.fullName}</p>
+            <p className="text-[10px] text-brand-400 font-bold uppercase">{user?.role}</p>
+          </div>
+          <button
+            onClick={() => {
+              logout();
+              navigate('/');
+            }}
+            className="w-full p-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-xl font-bold flex items-center justify-center gap-2 transition-all border border-rose-500/30"
+          >
+            <LogOut className="w-4 h-4" />
+            <span>Exit Command Center</span>
+          </button>
+        </div>
+      </aside>
+
+      {/* Main Content Viewport */}
+      <main className="flex-1 min-w-0 w-full p-3 sm:p-5 lg:p-8 space-y-5 sm:space-y-8 max-w-7xl overflow-x-hidden">
+        {/* Command Bar Top Header */}
+        <div className="p-4 sm:p-6 rounded-2xl sm:rounded-3xl glass-panel border border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 min-w-0">
+          <div className="flex items-start sm:items-center gap-3 w-full sm:w-auto min-w-0">
+            <button
+              onClick={() => setMobileSidebarOpen((prev) => !prev)}
+              className="lg:hidden p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-brand-400 transition-all shrink-0"
+              aria-label="Toggle admin navigation"
+            >
+              {mobileSidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </button>
+            <div>
+              <div className="flex items-start sm:items-center gap-2 text-[10px] sm:text-xs font-mono text-cyber-accent font-bold min-w-0">
+                <Activity className="w-4 h-4" />
+                <span className="break-words">CADELIBORA ENTERPRISE ADMIN ENGINE v2.5</span>
+              </div>
+              <h1 className="text-xl sm:text-2xl font-black text-white mt-1">Master System Console</h1>
+            </div>
+          </div>
+
+          <div className="flex flex-col xs:flex-row sm:flex-wrap items-stretch xs:items-center gap-2 sm:gap-3 font-mono text-[10px] sm:text-xs w-full sm:w-auto">
+            <div className="px-3 py-2 sm:py-1.5 bg-slate-950 border border-slate-800 rounded-xl flex items-center gap-2 min-w-0">
+              <Database className="w-3.5 h-3.5 text-emerald-400" />
+              <span className={databaseOnline ? 'text-emerald-400' : 'text-amber-400'}>
+                PostgreSQL {databaseOnline ? 'Connected' : 'Unavailable'}
+              </span>
+            </div>
+            <div className="px-3 py-2 sm:py-1.5 bg-slate-950 border border-slate-800 rounded-xl flex items-center gap-2 min-w-0">
+              <Terminal className="w-3.5 h-3.5 text-brand-400" />
+              <span className={apiOnline ? 'text-emerald-400' : 'text-amber-400'}>
+                REST API {apiOnline ? 'Online' : 'Unavailable'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* View Content */}
+        {children}
+      </main>
+
+      {/* Mobile Sidebar Drawer */}
+      {mobileSidebarOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 lg:hidden flex">
+          <div className="w-[min(18rem,88vw)] bg-slate-950 border-r border-slate-800 p-4 sm:p-6 flex flex-col justify-between overflow-y-auto">
+            <div className="space-y-6">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                <div className="flex items-center gap-2">
+                  <Shield className="w-5 h-5 text-cyber-accent" />
+                  <span className="font-mono text-xs font-black tracking-widest text-white uppercase">COMMAND CENTER</span>
+                </div>
+                <button onClick={() => setMobileSidebarOpen(false)} aria-label="Close menu">
+                  <X className="w-6 h-6 text-slate-400" />
+                </button>
+              </div>
+
+              <nav className="space-y-1 font-mono text-xs">
+                {adminNav.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = location.pathname.startsWith(item.path) || (item.path === '/admin/dashboard' && location.pathname === '/admin');
+                  return (
+                    <Link
+                      key={item.path}
+                      to={item.path}
+                      onClick={() => setMobileSidebarOpen(false)}
+                      className={`flex items-center gap-3 px-3.5 py-3 rounded-xl transition-all ${
+                        isActive
+                          ? 'bg-brand-600 text-white font-bold shadow-lg shadow-brand-500/20 border border-brand-500/50'
+                          : 'text-slate-400 hover:text-slate-100 hover:bg-slate-900 border border-transparent'
+                      }`}
+                    >
+                      <Icon className="w-4 h-4 text-brand-400" />
+                      <span>{item.label}</span>
+                    </Link>
+                  );
+                })}
+              </nav>
+            </div>
+
+            <div className="pt-4 border-t border-slate-800 space-y-3 font-mono text-xs mt-6">
+              <div className="px-2">
+                <p className="font-bold text-white truncate">{user?.fullName}</p>
+                <p className="text-[10px] text-brand-400 font-bold uppercase">{user?.role}</p>
+              </div>
+              <button
+                onClick={() => {
+                  logout();
+                  navigate('/');
+                }}
+                className="w-full p-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-xl font-bold flex items-center justify-center gap-2 transition-all border border-rose-500/30"
+              >
+                <LogOut className="w-4 h-4" />
+                <span>Exit Command Center</span>
+              </button>
+            </div>
+          </div>
+          <div className="flex-1" onClick={() => setMobileSidebarOpen(false)}></div>
+        </div>
+      )}
+    </div>
+  );
+};
