@@ -1,31 +1,14 @@
-import nodemailer from 'nodemailer';
-import { ENV } from '../config/env.js';
 
-const emailHost = process.env.EMAIL_HOST;
-const emailPort = Number(process.env.EMAIL_PORT || 587);
-const emailSecure = process.env.EMAIL_SECURE === 'true';
-const emailUser = process.env.EMAIL_USER;
-const emailPassword = process.env.EMAIL_PASSWORD;
-const emailFrom = process.env.EMAIL_FROM;
-
-if (!emailHost || !emailUser || !emailPassword || !emailFrom) {
-  throw new Error(
-    'Email configuration is incomplete. Check EMAIL_HOST, EMAIL_USER, EMAIL_PASSWORD, and EMAIL_FROM.'
-  );
-}
-
-const transporter = nodemailer.createTransport({
-  host: emailHost,
-  port: emailPort,
-  secure: emailSecure,
-  auth: {
-    user: emailUser,
-    pass: emailPassword,
-  },
-});
+import { Resend } from 'resend';
 
 export async function verifyEmailConnection(): Promise<void> {
-  await transporter.verify();
+  if (!process.env.RESEND_API_KEY) {
+    throw new Error('RESEND_API_KEY is not configured.');
+  }
+
+  if (!process.env.EMAIL_FROM) {
+    throw new Error('EMAIL_FROM is not configured.');
+  }
 }
 
 export async function sendEmail(
@@ -33,10 +16,37 @@ export async function sendEmail(
   subject: string,
   html: string
 ): Promise<void> {
-  await transporter.sendMail({
-    from: emailFrom,
-    to,
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = process.env.EMAIL_FROM;
+
+  if (!apiKey || !from) {
+    throw new Error(
+      'Email configuration is incomplete. Check RESEND_API_KEY and EMAIL_FROM.'
+    );
+  }
+
+  const resend = new Resend(apiKey);
+
+  const { data, error } = await resend.emails.send({
+    from,
+    to: [to],
     subject,
     html,
   });
+
+  if (error) {
+    console.error('Resend email delivery error:', {
+      name: error.name,
+      message: error.message,
+      statusCode: error.statusCode,
+    });
+
+    throw new Error('Unable to send verification email.');
+  }
+
+  if (!data?.id) {
+    throw new Error('Email provider did not confirm the email request.');
+  }
+
+  console.log('Email accepted by Resend:', data.id);
 }
